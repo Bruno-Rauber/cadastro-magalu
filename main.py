@@ -1,3 +1,5 @@
+import base64
+
 from dotenv import load_dotenv
 import os
 
@@ -42,7 +44,7 @@ resposta = client.messages.create(
 
 def tratar_resposta(resposta_IA):
 
-    texto_resposta = resposta.content[0].text
+    texto_resposta = resposta_IA.content[0].text
 
     inicio = texto_resposta.find("{")
     fim = texto_resposta.rfind("}")
@@ -52,7 +54,7 @@ def tratar_resposta(resposta_IA):
 
 import json
 
-def verificar_json(texto_json):
+def verificar_json(texto_json, content_retry, fallback):
     try:
         dados = json.loads(texto_json)
         return dados
@@ -61,26 +63,114 @@ def verificar_json(texto_json):
             resposta2 = client.messages.create(
                 model="claude-haiku-4-5",
                 max_tokens=500,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": content_retry}]
             )
             texto_json2 = tratar_resposta(resposta2)
             dados = json.loads(texto_json2)
             return dados
         except json.JSONDecodeError:
-            return {
-                "cliente": {
-                    "renda": None,
-                    "profissao": None,
-                    "email": None,
-                    "telefone": None,
-                    "estado_civil": None
-                },
-                "conjuge": None
+            return fallback
+
+def montar_bloco_arquivo(caminho_arquivo):
+    with open(caminho_arquivo, "rb") as arquivo:
+        arquivo_binario = arquivo.read()
+
+    arquivo_base64 = base64.b64encode(arquivo_binario).decode("utf-8")
+
+    caminho_arquivo = str(caminho_arquivo)
+
+    if caminho_arquivo.endswith((".png", ".jpg", ".jpeg")):
+        if caminho_arquivo.endswith(".png"):
+            extensao = "image"
+            media_type = "image/png"
+
+        else:
+            extensao = "image"
+            media_type = "image/jpeg"
+
+    elif caminho_arquivo.endswith(".pdf"):
+        extensao = "document"
+        media_type = "application/pdf"
+
+    else:
+        raise ValueError("esse arquivo não é nem um PDF nem uma imagem, verifique sua extensão e convertao")
+
+    return {
+        "type": extensao,
+        "source": {
+        "type": "base64",
+        "media_type": media_type,
+        "data": arquivo_base64
             }
+        }
 
-json_decodificado = verificar_json(tratar_resposta(resposta))
+prompt_documento = f"""Preciso que me dê um JSON. Somente JSON de resposta! No seguinte formato abaixo:
+
+{{
+"nome": "aqui vai o valor",
+"cpf": "aqui vai o valor",
+"data_de_nascimento": "aqui vai o valor"
+}}
+
+Preencha os campos com os valores encontrados no arquivo anexado. Caso não encontre o valor de algum campo, preencha com null. Não invente ou estime valores — só preencha um campo se ele aparecer claramente no arquivo.
+
+Não use blocos de código markdown, nem texto antes ou depois — sua resposta deve começar direto com {{ e terminar com }}.
+
+O arquivo será um documento pessoal da pessoa, CNH/RG, sendo em PNG, JPEG ou PDF.
+"""
+
+prompt_endereco = f"""Preciso que me dê um JSON. Somente JSON de resposta! No seguinte formato abaixo:
+
+{{
+"logradouro": "aqui vai o valor",
+"cep": "aqui vai o valor",
+"cidade": "aqui vai o valor"
+}}
+
+Preencha os campos com os valores encontrados no arquivo anexado. Caso não encontre o valor de algum campo, preencha com null. Não invente ou estime valores — só preencha um campo se ele aparecer claramente no arquivo.
+
+Não use blocos de código markdown, nem texto antes ou depois — sua resposta deve começar direto com {{ e terminar com }}.
+
+O arquivo será um documento de comprovante de residência , conta de luz/água e afins , sendo em PNG, JPEG ou PDF.
+"""
+
+arquivos_endereco = list(pasta.glob("endereco.*"))
+
+if not arquivos_endereco:
+    raise FileNotFoundError("Não encontrei o arquivo com nome endereco na pasta")
+else:
+    caminho_arquivo_endereco = arquivos_endereco[0]
+
+arquivos_cnh = list(pasta.glob("cnh.*"))
+
+if not arquivos_cnh:
+    raise FileNotFoundError("Não encontrei o arquivo com nome cnh na pasta")
+else:
+    caminho_arquivo_cnh = arquivos_cnh[0]
 
 
+resposta_docuemnto_cnh = client.messages.create(
+    model="claude-sonnet-5",
+    max_tokens=500,
+    messages=[{"role": "user", "content": [montar_bloco_arquivo(caminho_arquivo_cnh), {"type": "text", "text": prompt_documento}]}],
+)
 
+resposta_docuemnto_endeco = client.messages.create(
+    model="claude-sonnet-5",
+    max_tokens=500,
+    messages=[{"role": "user", "content": [montar_bloco_arquivo(caminho_arquivo_endereco), {"type": "text", "text": prompt_endereco}]}],
+)
 
+json_dados_por_escrito = verificar_json(tratar_resposta(resposta),
+    prompt,
+    {"cliente": {"renda": None, "profissao": None, "email": None, "telefone": None, "estado_civil": None}, "conjuge": None})
 
+json_dados_cnh = verificar_json(tratar_resposta(resposta_docuemnto_cnh),
+[montar_bloco_arquivo(caminho_arquivo_cnh), {"type": "text", "text": prompt_documento}],
+{"nome": None, "cpf": None, "data_de_nascimento": None})
+
+json_dados_endereco = verificar_json(tratar_resposta(resposta_docuemnto_endeco),
+[montar_bloco_arquivo(caminho_arquivo_endereco), {"type": "text", "text": prompt_endereco}],
+{"logradouro": None, "cep": None, "cidade": None})
+
+print(f"{json_dados_cnh} \n {json_dados_endereco}")

@@ -4,3 +4,4 @@ venv/
 *.jpg
 *.png
 __pycache__/
+teste.py
