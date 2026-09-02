@@ -173,4 +173,39 @@ json_dados_endereco = verificar_json(tratar_resposta(resposta_docuemnto_endeco),
 [montar_bloco_arquivo(caminho_arquivo_endereco), {"type": "text", "text": prompt_endereco}],
 {"logradouro": None, "cep": None, "cidade": None})
 
-print(f"{json_dados_cnh} \n {json_dados_endereco}")
+def verificador_cpf(cpf) -> bool:
+    cpf_limpo = cpf.replace(".", "").replace("-", "")
+    primeiros_nove_digitos = cpf_limpo[:9]
+    digito_varificador1 = 0
+    digito_varificador2 = 0
+    soma = 0
+
+    for indice, digito in enumerate(primeiros_nove_digitos):
+        peso = 10 - indice
+        soma += int(digito) * peso
+
+    soma = soma % 11
+
+    if soma < 2:
+        digito_varificador1 = 0
+    else :
+        digito_varificador1 = 11 - soma
+
+    soma = 0
+
+    for indice, digito in enumerate(primeiros_nove_digitos + str(digito_varificador1)):
+        peso = 11 - indice
+        soma += int(digito) * peso
+
+    soma = soma % 11
+
+    if soma < 2:
+        digito_varificador2 = 0
+    else:
+        digito_varificador2 = 11 - soma
+
+
+    if digito_varificador1 != int(cpf_limpo[9]) or digito_varificador2 != int(cpf_limpo[10]):
+        return False
+    else:
+        return True
