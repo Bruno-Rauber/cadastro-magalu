@@ -174,6 +174,8 @@ json_dados_endereco = verificar_json(tratar_resposta(resposta_docuemnto_endeco),
 {"logradouro": None, "cep": None, "cidade": None})
 
 def verificador_cpf(cpf) -> bool:
+    if cpf is None:
+        return False
     cpf_limpo = cpf.replace(".", "").replace("-", "")
     primeiros_nove_digitos = cpf_limpo[:9]
     digito_varificador1 = 0
@@ -209,3 +211,37 @@ def verificador_cpf(cpf) -> bool:
         return False
     else:
         return True
+
+
+def transformar_com_confianca(dicionario_plano):
+    if dicionario_plano is None:
+        return None
+
+    result = dicionario_plano.copy()
+
+    for valor in dicionario_plano:
+
+        if valor == "cpf" and verificador_cpf(dicionario_plano["cpf"]):
+            result[valor] = {"valor": dicionario_plano[valor], "confianca": "alta"}
+        elif valor == "cpf" and not verificador_cpf(dicionario_plano["cpf"]):
+            result[valor] = {"valor": dicionario_plano[valor], "confianca": "baixa"}
+
+        elif dicionario_plano[valor] is not None:
+            result[valor] = {"valor": dicionario_plano[valor], "confianca": "alta"}
+
+        else:
+            result[valor] = {"valor": dicionario_plano[valor], "confianca": "baixa"}
+
+    return result
+
+dados_cliente = {}
+dados_cliente.update(transformar_com_confianca(json_dados_cnh))
+dados_cliente.update(transformar_com_confianca(json_dados_endereco))
+dados_cliente.update(transformar_com_confianca(json_dados_por_escrito["cliente"]))
+
+ficha_final = {
+    "cliente": dados_cliente,
+    "conjuge":  transformar_com_confianca(json_dados_por_escrito["conjuge"])
+}
+
+print(ficha_final)
