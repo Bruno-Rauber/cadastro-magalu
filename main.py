@@ -6,7 +6,6 @@ import os
 load_dotenv()  # lê o arquivo .env e carrega as variáveis
 chave = os.getenv("ANTHROPIC_API_KEY")  # pega o valor de dentro do código
 
-from pathlib import Path
 
 from pathlib import Path
 pasta = Path(r"C:\Users\bruno\Desktop\CadastroMagalu")  # o caminho real da sua pasta
@@ -149,7 +148,7 @@ else:
     caminho_arquivo_cnh = arquivos_cnh[0]
 
 
-resposta_docuemnto_cnh = client.messages.create(
+resposta_documento_cnh = client.messages.create(
     model="claude-sonnet-5",
     max_tokens=500,
     messages=[{"role": "user", "content": [montar_bloco_arquivo(caminho_arquivo_cnh), {"type": "text", "text": prompt_documento}]}],
@@ -165,7 +164,7 @@ json_dados_por_escrito = verificar_json(tratar_resposta(resposta),
     prompt,
     {"cliente": {"renda": None, "profissao": None, "email": None, "telefone": None, "estado_civil": None}, "conjuge": None})
 
-json_dados_cnh = verificar_json(tratar_resposta(resposta_docuemnto_cnh),
+json_dados_cnh = verificar_json(tratar_resposta(resposta_documento_cnh),
 [montar_bloco_arquivo(caminho_arquivo_cnh), {"type": "text", "text": prompt_documento}],
 {"nome": None, "cpf": None, "data_de_nascimento": None})
 
@@ -177,6 +176,10 @@ def verificador_cpf(cpf) -> bool:
     if cpf is None:
         return False
     cpf_limpo = cpf.replace(".", "").replace("-", "")
+
+    if len(cpf_limpo) != 11:
+        return False
+
     primeiros_nove_digitos = cpf_limpo[:9]
     digito_varificador1 = 0
     digito_varificador2 = 0
@@ -244,4 +247,18 @@ ficha_final = {
     "conjuge":  transformar_com_confianca(json_dados_por_escrito["conjuge"])
 }
 
-print(ficha_final)
+def imprimir_pessoa(dicionario_pessoa, titulo):
+    result = f"=== {titulo} ===\n"
+
+    for chave, valor in dicionario_pessoa.items():
+        if valor["confianca"] == "alta":
+            result += f"{chave.replace('_', ' ').capitalize()}: {valor['valor']}\n"
+        else:
+            result += f"{chave.replace('_', '' '').capitalize()}: ⚠️ NÃO ENCONTRADO — revisar\n"
+
+    print(result)
+    return result
+
+imprimir_pessoa(ficha_final["cliente"], "Cliente")
+if ficha_final["conjuge"] is not None:
+    imprimir_pessoa(ficha_final["conjuge"], "Cônjuge")
