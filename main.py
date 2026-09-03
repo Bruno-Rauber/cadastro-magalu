@@ -8,7 +8,7 @@ chave = os.getenv("ANTHROPIC_API_KEY")  # pega o valor de dentro do código
 
 
 from pathlib import Path
-pasta = Path(r"C:\Users\bruno\Desktop\CadastroMagalu")  # o caminho real da sua pasta
+pasta = Path(r"C:\Users\bruno\Desktop\CadastroMagalu\SubirCadastro")  # o caminho real da sua pasta
 caminho_arquivo = pasta / "texto_whats.txt"
 
 with open(caminho_arquivo, "r", encoding="utf-8") as arquivo:
@@ -262,3 +262,7 @@ def imprimir_pessoa(dicionario_pessoa, titulo):
 imprimir_pessoa(ficha_final["cliente"], "Cliente")
 if ficha_final["conjuge"] is not None:
     imprimir_pessoa(ficha_final["conjuge"], "Cônjuge")
+
+grupo = input("\nDigite o Grupo: ")
+cota = input("Digite a Cota: ")
+

@@ -5,3 +5,4 @@ venv/
 *.png
 __pycache__/
 teste.py
+teste_playwright.py
