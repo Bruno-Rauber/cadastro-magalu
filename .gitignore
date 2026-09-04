@@ -6,3 +6,5 @@ venv/
 __pycache__/
 teste.py
 teste_playwright.py
+estado_login.json
+salvar_login.py
