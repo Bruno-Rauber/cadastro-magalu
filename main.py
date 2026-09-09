@@ -21,8 +21,8 @@ client = anthropic.Anthropic(api_key=chave)  # a variável que você já carrego
 prompt = f"""Preciso que me dê um JSON. Somente JSON de resposta! No seguinte formato abaixo:
 
 {{
-"cliente": {{ "renda": "aqui vai o valor", "profissao": "aqui vai o valor", "email": "aqui vai o valor", "telefone": "aqui vai o valor", "estado_civil": "aqui vai o valor" }},
-"conjuge": null ou {{ "nome": "aqui vai o valor", "cpf": "aqui vai o valor", "profissao": "aqui vai o valor", "renda": "aqui vai o valor" }}
+"cliente": {{ "renda": "aqui vai o valor", "profissao": "aqui vai o valor", "email": "aqui vai o valor", "telefone": "aqui vai o valor", "estado_civil": "aqui vai o valor", "sexo": "aqui vai o valor"  }},
+"conjuge": null ou {{ "nome": "aqui vai o valor", "cpf": "aqui vai o valor", "profissao": "aqui vai o valor", "renda": "aqui vai o valor", "sexo": "aqui vai o valor" }}
 }}
 
 Preencha os campos com os valores encontrados no texto abaixo. Caso não encontre o valor de algum campo, preencha com null. Não invente ou estime valores — só preencha um campo se ele aparecer claramente no texto.
@@ -31,6 +31,7 @@ Não use blocos de código markdown, nem texto antes ou depois — sua resposta 
 
 O texto pode trazer uma seção "Dados do cliente" e outra "Dados do cônjuge" — use essas marcações para separar quem é quem.
 
+Tanto cliente quanto conjuge devem ter sexo/genero e ele verá dessa forma Sexo: (m/f) - "m" para masculino e F para feminino. No JSON você deve colocar dessa forma sem ser por extenso
 Texto do WhatsApp:
 {texto_whats}
 """
@@ -162,7 +163,7 @@ resposta_docuemnto_endeco = client.messages.create(
 
 json_dados_por_escrito = verificar_json(tratar_resposta(resposta),
     prompt,
-    {"cliente": {"renda": None, "profissao": None, "email": None, "telefone": None, "estado_civil": None}, "conjuge": None})
+    {"cliente": {"renda": None, "profissao": None, "email": None, "telefone": None, "estado_civil": None}, "conjuge": None, "sexo": None})
 
 json_dados_cnh = verificar_json(tratar_resposta(resposta_documento_cnh),
 [montar_bloco_arquivo(caminho_arquivo_cnh), {"type": "text", "text": prompt_documento}],
