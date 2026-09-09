@@ -123,6 +123,8 @@ prompt_endereco = f"""Preciso que me dê um JSON. Somente JSON de resposta! No s
 
 {{
 "logradouro": "aqui vai o valor",
+"numero": "aqui vai o valor",
+"bairro": "aqui vai o valor",
 "cep": "aqui vai o valor",
 "cidade": "aqui vai o valor"
 }}
@@ -131,7 +133,7 @@ Preencha os campos com os valores encontrados no arquivo anexado. Caso não enco
 
 Não use blocos de código markdown, nem texto antes ou depois — sua resposta deve começar direto com {{ e terminar com }}.
 
-O arquivo será um documento de comprovante de residência , conta de luz/água e afins , sendo em PNG, JPEG ou PDF.
+O arquivo será um documento de comprovante de residência, conta de luz/água e afins, sendo em PNG, JPEG ou PDF.
 """
 
 arquivos_endereco = list(pasta.glob("endereco.*"))
@@ -171,7 +173,10 @@ json_dados_cnh = verificar_json(tratar_resposta(resposta_documento_cnh),
 
 json_dados_endereco = verificar_json(tratar_resposta(resposta_docuemnto_endeco),
 [montar_bloco_arquivo(caminho_arquivo_endereco), {"type": "text", "text": prompt_endereco}],
-{"logradouro": None, "cep": None, "cidade": None})
+{"logradouro": None, "numero": None, "bairro": None, "cep": None, "cidade": None})
+
+if json_dados_endereco["bairro"] is None:
+    json_dados_endereco["bairro"] = "Centro"
 
 def verificador_cpf(cpf) -> bool:
     if cpf is None:
@@ -264,6 +269,5 @@ imprimir_pessoa(ficha_final["cliente"], "Cliente")
 if ficha_final["conjuge"] is not None:
     imprimir_pessoa(ficha_final["conjuge"], "Cônjuge")
 
-grupo = input("\nDigite o Grupo: ")
-cota = input("Digite a Cota: ")
+
 
