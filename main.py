@@ -221,53 +221,60 @@ def verificador_cpf(cpf) -> bool:
     else:
         return True
 
+if not verificador_cpf(json_dados_cnh["cpf"]):
+    json_dados_cnh["cpf"] = None
 
-def transformar_com_confianca(dicionario_plano):
-    if dicionario_plano is None:
-        return None
 
-    result = dicionario_plano.copy()
+if  not json_dados_por_escrito["conjuge"] is None and not verificador_cpf(json_dados_por_escrito["conjuge"]["cpf"]):
+    json_dados_por_escrito["conjuge"]["cpf"] = None
 
-    for valor in dicionario_plano:
-
-        if valor == "cpf" and verificador_cpf(dicionario_plano["cpf"]):
-            result[valor] = {"valor": dicionario_plano[valor], "confianca": "alta"}
-        elif valor == "cpf" and not verificador_cpf(dicionario_plano["cpf"]):
-            result[valor] = {"valor": dicionario_plano[valor], "confianca": "baixa"}
-
-        elif dicionario_plano[valor] is not None:
-            result[valor] = {"valor": dicionario_plano[valor], "confianca": "alta"}
-
-        else:
-            result[valor] = {"valor": dicionario_plano[valor], "confianca": "baixa"}
-
-    return result
 
 dados_cliente = {}
-dados_cliente.update(transformar_com_confianca(json_dados_cnh))
-dados_cliente.update(transformar_com_confianca(json_dados_endereco))
-dados_cliente.update(transformar_com_confianca(json_dados_por_escrito["cliente"]))
+dados_cliente.update(json_dados_cnh)
+dados_cliente.update(json_dados_endereco)
+dados_cliente.update(json_dados_por_escrito["cliente"])
 
 ficha_final = {
     "cliente": dados_cliente,
-    "conjuge":  transformar_com_confianca(json_dados_por_escrito["conjuge"])
+    "conjuge":  json_dados_por_escrito["conjuge"]
 }
 
 def imprimir_pessoa(dicionario_pessoa, titulo):
     result = f"=== {titulo} ===\n"
 
     for chave, valor in dicionario_pessoa.items():
-        if valor["confianca"] == "alta":
-            result += f"{chave.replace('_', ' ').capitalize()}: {valor['valor']}\n"
-        else:
-            result += f"{chave.replace('_', '' '').capitalize()}: ⚠️ NÃO ENCONTRADO — revisar\n"
+        result = result + f"{chave}: {valor}\n"
 
     print(result)
     return result
 
-imprimir_pessoa(ficha_final["cliente"], "Cliente")
+def portao(dados_pessoa, pessoa):
+    dados_none = []
+
+    for chave, valor in dados_pessoa.items():
+        if valor is None:
+            dados_none.append(f"{pessoa}: {chave}")
+
+    if not dados_none:
+        imprimir_pessoa(dados_pessoa, pessoa)
+        return True
+    else:
+        print(f"Não podemos prosseguir devido a falta do(s) seguinte(s) dado(s): {dados_none}")
+        return False
+
+cliente_ok = portao(ficha_final["cliente"], "Cliente")
+
+conjuge_ok = True
 if ficha_final["conjuge"] is not None:
-    imprimir_pessoa(ficha_final["conjuge"], "Cônjuge")
+    conjuge_ok = portao(ficha_final["conjuge"], "Cônjuge")
+
+if not cliente_ok or not conjuge_ok:
+    raise ValueError("Ficha incompleta — corrija os dados faltantes antes de continuar.")
+
+if ficha_final["cliente"]["estado_civil"].lower() == "casado" and ficha_final["conjuge"] is None:
+    raise ValueError("O Cliente é casado, mas não temos dados do conjuge")
+
+
 
 
 
