@@ -10,3 +10,5 @@ estado_login.json
 salvar_login.py
 emitir_extrato.py
 termo.py
+gerar_lista_profissoes.py
+profissoes_magalu.json

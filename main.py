@@ -18,6 +18,14 @@ pasta = Path(r"C:\Users\bruno\Desktop\CadastroMagalu\SubirCadastro")  # o caminh
 
 client = anthropic.Anthropic(api_key=chave)
 
+# Lista de profissões cadastradas no sistema da Magalu (gerada uma única vez
+# pelo gerar_lista_profissoes.py). Usada no prompt pra IA padronizar o texto
+# extraído do WhatsApp com uma opção que realmente existe no sistema.
+with open("profissoes_magalu.json", "r", encoding="utf-8") as arquivo_profissoes:
+    lista_profissoes_magalu = json.load(arquivo_profissoes)
+
+lista_profissoes_texto = ", ".join(lista_profissoes_magalu)
+
 mapa_estado_civil = {
     "casado": "1",
     "desquitado": "2",
@@ -187,6 +195,10 @@ Não use blocos de código markdown, nem texto antes ou depois — sua resposta 
 O texto pode trazer uma seção "Dados do cliente" e outra "Dados do cônjuge" — use essas marcações para separar quem é quem.
 
 Tanto cliente quanto conjuge devem ter sexo/genero e ele verá dessa forma Sexo: (m/f) - "m" para masculino e F para feminino. No JSON você deve colocar dessa forma sem ser por extenso
+
+Para o campo "profissao" (tanto do cliente quanto do cônjuge, se houver), escolha a opção mais parecida/equivalente dentre a lista abaixo — essas são as únicas profissões cadastradas no sistema onde esse dado vai ser usado (ex: "PEDREIRO" no texto e "PEDREIRO" na lista bate direto; "MOTORISTA DE APP" no texto pode corresponder a "MOTORISTA" na lista). Alguns itens da lista têm sufixos de gênero como "(A)" ou "(O)" com formatação inconsistente (às vezes com espaço antes, às vezes sem) — não se preocupe em reproduzir esse sufixo nem sua formatação exata, priorize acertar a palavra principal da profissão. Se não tiver na lista voce deve colocar "OUTROS" como profissao.
+Lista de profissões válidas: {lista_profissoes_texto}
+
 Texto do WhatsApp:
 {texto_whats}
 """
@@ -309,6 +321,12 @@ ficha_final["cliente"]["sexo"] = ficha_final["cliente"]["sexo"].upper()
 if ficha_final["conjuge"] is not None:
     ficha_final["conjuge"]["sexo"] = ficha_final["conjuge"]["sexo"].upper()
 
+# Telefone sem DDD deve ter 8 ou 9 dígitos. Quando a IA erra por causa de
+# dígitos repetidos em sequência (ex: "999698969" virar "9999698969"), o erro
+# mais comum é duplicar o primeiro dígito — corrigimos removendo-o nesse caso.
+if len(ficha_final["cliente"]["telefone"]) >= 10:
+    ficha_final["cliente"]["telefone"] = ficha_final["cliente"]["telefone"][1:]
+
 # Estado civil: calculado uma única vez aqui, reaproveitado tanto no portão
 # quanto dentro do Playwright (adicionar_dados_cliente) para decidir o combo
 # e se a aba de cônjuge deve abrir.
@@ -319,7 +337,7 @@ codigo_estado_civil = mapa_estado_civil[estado_civil_extraido]
 if codigo_estado_civil in ("1", "8") and ficha_final["conjuge"] is None:
     raise ValueError("O cliente é casado ou está em união estável, mas não temos dados do cônjuge")
 
-
+input("aperte enter")
 # =====================================================================
 # Automação Playwright (preenchimento no Magalu)
 # =====================================================================
@@ -421,15 +439,19 @@ def run(playwright: Playwright) -> None:
         page3.locator(
             "#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaConjuge_btnBuscarProfissao").click()
         tabela_profissoes = page3.locator("#tablePais tbody tr")
-        if tabela_profissoes.count() != 1:
-            print("\n⏸ Selecione a profissão correta na lista de resultados e confirme...")
+        qtde_profissoes = tabela_profissoes.count()
+        if qtde_profissoes == 0:
+            print("\n⏸ Nenhuma profissão encontrada — selecione manualmente e confirme...")
             page3.locator(
                 "#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaConjuge_btnBuscarProfissao").wait_for(
                 state="hidden", timeout=120000)
-            page3.get_by_role("button", name="Continuar", description="Continuar").click()
+            page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaConjuge_btnContinuar").click()
         else:
-            page3.get_by_title("selecionar").click()
-            page3.get_by_role("button", name="Continuar", description="Continuar").click()
+            # count() > 1 acontece quando o sistema da Magalu tem a mesma profissão
+            # cadastrada duas vezes com códigos diferentes (bug já mapeado) — como o
+            # texto é idêntico, tanto faz qual delas escolher, então pega a primeira.
+            page3.get_by_title("selecionar").first.click()
+            page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaConjuge_btnContinuar").click()
 
     def adicionar_dados_cliente():
         page3.wait_for_selector("text=ADICIONAR", timeout=120000)
@@ -462,21 +484,27 @@ def run(playwright: Playwright) -> None:
 
         page3.get_by_role("textbox", name="Faça a busca pela descrição").fill(ficha_final["cliente"]["profissao"])
         page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaFisica_btnBuscarProfissao").click()
+
         tabela_profissoes = page3.locator("#tablePais tbody tr")
-        print(tabela_profissoes.count())
-        if tabela_profissoes.count() != 1:
-            print("\n⏸ Selecione a profissão correta na lista de resultados e confirme...")
-            page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaFisica_divBuscaProfissao").wait_for(state="hidden", timeout=120000)
+        qtde_profissoes = tabela_profissoes.count()
+        if qtde_profissoes == 0:
+            print("\n⏸ Nenhuma profissão encontrada — selecione manualmente e confirme...")
+            page3.locator(
+                "#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaFisica_divBuscaProfissao").wait_for(
+                state="hidden", timeout=120000)
         else:
-            page3.get_by_title("selecionar").click()
+            # count() > 1 acontece quando o sistema da Magalu tem a mesma profissão
+            # cadastrada duas vezes com códigos diferentes (bug já mapeado) — como o
+            # texto é idêntico, tanto faz qual delas escolher, então pega a primeira.
+            page3.get_by_title("selecionar").first.click()
 
         page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaFisica_cmbEstadoCivil").select_option(codigo_estado_civil)
 
         if codigo_estado_civil in ("1", "8"):
-            page3.get_by_role("button", name="Continuar", description="Continuar").click()
+            page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaFisica_btnContinuar").click()
             adicionar_dados_conjuge()
         else:
-            page3.get_by_role("button", name="Continuar", description="Continuar").click()
+            page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaFisica_btnContinuar").click()
 
     adicionar_dados_cliente()
 
@@ -488,7 +516,7 @@ def run(playwright: Playwright) -> None:
     tabela_de_enderecos = page3.locator("#tableEndereco tr")
 
     def adicionar_novo_endereco():
-        page3.get_by_role("button", name=" Adicionar").click()
+        page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowEndereco_btAddEndereco").click()
         page3.locator(
             "#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowEndereco_cmbTipoEndereco").select_option("1")
 
@@ -607,13 +635,16 @@ def run(playwright: Playwright) -> None:
     else:
         adicionar_novo_email()
 
-    page3.get_by_role("button", name="Continuar", description="confirmar").click()
+    page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowFatca_btnConfirmar").click()
     page3.wait_for_load_state("networkidle")
-    page3.get_by_role("button", name="Continuar", description="Continuar").click()
-    page3.locator("#ctl00_Conteudo_btnAvancar").click()
-    page3.get_by_role("button", name="Continuar").click()
+    page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowDadosLaborais_btnContinuar").click()
     page3.wait_for_load_state("networkidle")
-    page3.get_by_role("button", name="Continuar").click()
+    page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowInformacaoBancaria_btnContinuar").click()
+    page3.wait_for_load_state("networkidle")
+    page3.locator("#ctl00_Conteudo_btnAvancar").click(timeout=60000)
+    page3.wait_for_load_state("networkidle")
+    page3.locator("#ctl00_Conteudo_btnAvancar").click(timeout=60000)
+    page3.wait_for_load_state("networkidle")
 
     # Bloco para anexar documentos (reaproveita a mesma `pasta` do topo do arquivo)
     lista_todos_arquivos = os.listdir(pasta)
@@ -676,7 +707,12 @@ def run(playwright: Playwright) -> None:
     page3.get_by_role("button", name="Confirmar").click()
     page3.close()
 
+
     # Gerar e baixar o termo de cessão (bloco já testado e validado)
+    page2.get_by_role("button", name="Processos").click()
+    page2.wait_for_timeout(60500)
+    page2.reload()
+    page2.wait_for_load_state("networkidle")
     page2.get_by_role("button", name="Processos").click()
     page2.get_by_role("combobox", name="Pesquisar por Nome").click()
     page2.get_by_role("option", name="Grupo/Cota").click()
@@ -698,7 +734,7 @@ def run(playwright: Playwright) -> None:
     with page6.expect_download() as download_info:
         frame_pdf.get_by_role("button", name="Baixar").click()
     download = download_info.value
-    download.save_as(str(pasta / "termo.pdf"))
+    download.save_as(str(pasta / f"termo_{grupo}-{cota}.pdf"))
 
     input("\nEsperando Enter pra finalizar")
     # ---------------------
