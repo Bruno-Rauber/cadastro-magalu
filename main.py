@@ -2,6 +2,7 @@ import re
 import os
 import json
 import base64
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -10,11 +11,48 @@ from playwright.sync_api import Playwright, sync_playwright, expect
 
 load_dotenv()  # lê o arquivo .env e carrega as variáveis
 chave = os.getenv("ANTHROPIC_API_KEY")
-chapa = os.getenv("CHAPA")
-senha_magalu = os.getenv("SENHA_MAGALU")
-filial = os.getenv("FILIAL")
+
+usuarios = {
+    "impulsionar": {
+    "chapa": os.getenv("IMPULSIONAR_CHAPA"),
+    "senha_magalu": os.getenv("IMPULSIONAR_SENHA"),
+    "filial": os.getenv("IMPULSIONAR_FILIAL")
+},
+    "douglas": {
+        "chapa": os.getenv("DOUGLAS_CHAPA"),
+        "senha_magalu": os.getenv("DOUGLAS_SENHA"),
+        "filial": os.getenv("DOUGLAS_FILIAL")
+    }
+}
+nomes_usuarios = ", ".join(usuarios.keys())
+
+usuario_entrada = input(f"De qual usuário é essa cota? Digite um dos nomes abaixo:\n {nomes_usuarios} \n").lower().strip()
+
+if usuario_entrada in usuarios:
+    chapa = usuarios[usuario_entrada]["chapa"]
+    senha_magalu = usuarios[usuario_entrada]["senha_magalu"]
+    filial = usuarios[usuario_entrada]["filial"]
+
+else:
+    raise ValueError("Esse usuário não existe ou não foi cadastrado")
 
 pasta = Path(r"C:\Users\bruno\Desktop\CadastroMagalu\SubirCadastro")  # o caminho real da sua pasta
+
+MODO_TESTE = True
+
+cpf_teste = os.getenv("CPF_TESTE")
+if MODO_TESTE:
+    grupo = os.getenv("GRUPO_TESTE")
+    cota = os.getenv("COTA_TESTE")
+else:
+    grupo = input("Digite o Grupo para esse processo: ").strip()
+    cota = input("Digite a cota para esse processo: ").strip()
+
+if not grupo or not cota:
+    raise ValueError("Você não colocou o grupo ou a cota. Rode de novo")
+
+if MODO_TESTE:
+    print("⚠️ RODANDO EM MODO TESTE")
 
 client = anthropic.Anthropic(api_key=chave)
 
@@ -26,14 +64,17 @@ with open("profissoes_magalu.json", "r", encoding="utf-8") as arquivo_profissoes
 
 lista_profissoes_texto = ", ".join(lista_profissoes_magalu)
 
+# Chaves já normalizadas (minúsculas, sem acento, sem "(a)").
+# Masculino e feminino apontam para o mesmo código do combo do Magalu.
 mapa_estado_civil = {
-    "casado": "1",
-    "desquitado": "2",
-    "separado judicialmente": "3",
+    "casado": "1", "casada": "1",
+    "desquitado": "2", "desquitada": "2",
+    "separado judicialmente": "3", "separada judicialmente": "3",
     "outro": "4",
-    "divorciado": "5",
-    "solteiro": "6",
+    "divorciado": "5", "divorciada": "5",
+    "solteiro": "6", "solteira": "6",
     "uniao estavel": "8",
+    "viuvo": "9", "viuva": "9",
 }
 
 
@@ -184,7 +225,7 @@ with open(caminho_arquivo, "r", encoding="utf-8") as arquivo:
 prompt = f"""Preciso que me dê um JSON. Somente JSON de resposta! No seguinte formato abaixo:
 
 {{
-"cliente": {{ "renda": "renda": "aqui vai o valor (formato numérico, ex: 2500,00 - sem R$, sem ponto de milhar, use vírgula para os centavos; se o valor não tiver centavos, acrescente ,00 no final)"", "profissao": "aqui vai o valor", "email": "aqui vai o valor", "telefone": "aqui vai o valor sem DDD (se o texto trouxer DDD, remova os 2 primeiros dígitos e devolva só o número local)", "estado_civil": "aqui vai o valor (solteiro, casado, divorciado, desquitado, separado judicialmente ou outro)", "sexo": "aqui vai o valor"  }},
+"cliente": {{ "renda": "renda": "aqui vai o valor (formato numérico, ex: 2500,00 - sem R$, sem ponto de milhar, use vírgula para os centavos; se o valor não tiver centavos, acrescente ,00 no final)"", "profissao": "aqui vai o valor", "email": "aqui vai o valor", "telefone": "aqui vai o valor sem DDD e sem +55 (se o texto trouxer DDD, remova os 2 primeiros dígitos e devolva só o número local) tome cuidado pra não duplicar numeros principalemnte "9" em sequencia, "estado_civil": "aqui vai o valor !sempre devolver no masculino Ex: casada devolver casado(solteiro, casado, divorciado, desquitado, separado judicialmente, uniao estavel, viuvo ou outro)", "sexo": "aqui vai o valor"  }},
 "conjuge": null ou {{ "nome": "aqui vai o valor", "data_de_nascimento: "aqui vai o valor", "cpf": "aqui vai o valor", "profissao": "aqui vai o valor", "renda": "renda": "aqui vai o valor (formato numérico, ex: 2500,00 - sem R$, sem ponto de milhar, use vírgula para os centavos; se o valor não tiver centavos, acrescente ,00 no final)", "sexo": "aqui vai o valor" }}
 }}
 
@@ -324,27 +365,42 @@ if ficha_final["conjuge"] is not None:
 # Telefone sem DDD deve ter 8 ou 9 dígitos. Quando a IA erra por causa de
 # dígitos repetidos em sequência (ex: "999698969" virar "9999698969"), o erro
 # mais comum é duplicar o primeiro dígito — corrigimos removendo-o nesse caso.
-if len(ficha_final["cliente"]["telefone"]) >= 10:
+
+telefone_limpo = ""
+for caractere in ficha_final["cliente"]["telefone"]:
+    if caractere.isnumeric():
+        telefone_limpo += caractere
+
+ficha_final["cliente"]["telefone"] = telefone_limpo
+
+if len(ficha_final["cliente"]["telefone"]) == 10:
     ficha_final["cliente"]["telefone"] = ficha_final["cliente"]["telefone"][1:]
+
+if len(ficha_final["cliente"]["telefone"]) > 10:
+    ficha_final["cliente"]["telefone"] = ficha_final["cliente"]["telefone"][2:]
 
 # Estado civil: calculado uma única vez aqui, reaproveitado tanto no portão
 # quanto dentro do Playwright (adicionar_dados_cliente) para decidir o combo
 # e se a aba de cônjuge deve abrir.
-estado_civil_extraido = ficha_final["cliente"]["estado_civil"].lower().replace("(a)", "").strip()
+estado_civil_extraido = ficha_final["cliente"]["estado_civil"].lower().replace("(a)", "").strip().replace("ã", "a").replace("á", "a").replace("ú", "u")
 codigo_estado_civil = mapa_estado_civil[estado_civil_extraido]
 
 # "1" = casado, "8" = união estável — os dois casos em que a aba de cônjuge abre no Magalu.
 if codigo_estado_civil in ("1", "8") and ficha_final["conjuge"] is None:
     raise ValueError("O cliente é casado ou está em união estável, mas não temos dados do cônjuge")
 
-input("aperte enter")
+#funcao utilziada para imprimir taxa de trasnferencia
+def eh_relatorio(pagina):
+    return "frmConCmImpressao" in pagina.url
+
+
+if MODO_TESTE:
+    ficha_final["cliente"]["cpf"] = cpf_teste
 # =====================================================================
 # Automação Playwright (preenchimento no Magalu)
 # =====================================================================
 
 def run(playwright: Playwright) -> None:
-    grupo = input("\nDigite o Grupo: ").strip() or "5243"
-    cota = input("Digite a Cota: ").strip() or "799"
     browser = playwright.chromium.launch(headless=False)
     context = browser.new_context()
     page = context.new_page()
@@ -400,7 +456,9 @@ def run(playwright: Playwright) -> None:
     linha_cota.locator("input").check()
     page3.get_by_role("button", name="Continuar").click()
 
+# =====================================================================
     # Preenchimento dos dados do cessionário
+# =====================================================================
     def adicionar_dados_conjuge():
         page3.locator("#ctl00_Conteudo_fichaCadastralWorkflow_fichaCadastralWorkflowPessoaConjuge_txtCPF").fill(
             ficha_final["conjuge"]["cpf"])
@@ -512,7 +570,9 @@ def run(playwright: Playwright) -> None:
 
     cidade_autocomplete = f"{ficha_final['cliente']['cidade']} - {ficha_final['cliente']['uf']}"
 
+# =====================================================================
     # Parte do endereço
+# =====================================================================
     tabela_de_enderecos = page3.locator("#tableEndereco tr")
 
     def adicionar_novo_endereco():
@@ -574,7 +634,9 @@ def run(playwright: Playwright) -> None:
     else:
         adicionar_novo_endereco()
 
+# =====================================================================
     # Adicionar Telefone
+# =====================================================================
     tabela_de_telefones = page3.locator("#tableEndereco tr")
 
     def adicionar_novo_telefone():
@@ -607,7 +669,9 @@ def run(playwright: Playwright) -> None:
     else:
         adicionar_novo_telefone()
 
+# =====================================================================
     # Adicionar email
+# =====================================================================
     tabela_de_email = page3.locator("#tableEndereco tr")
 
     def adicionar_novo_email():
@@ -709,6 +773,7 @@ def run(playwright: Playwright) -> None:
 
 
     # Gerar e baixar o termo de cessão (bloco já testado e validado)
+    caminho_termo = str(pasta / f"termo_{grupo}_{cota}.pdf")
     page2.get_by_role("button", name="Processos").click()
     page2.wait_for_timeout(60500)
     page2.reload()
@@ -734,7 +799,73 @@ def run(playwright: Playwright) -> None:
     with page6.expect_download() as download_info:
         frame_pdf.get_by_role("button", name="Baixar").click()
     download = download_info.value
-    download.save_as(str(pasta / f"termo_{grupo}-{cota}.pdf"))
+    download.save_as(caminho_termo)
+
+    # Emitir extrato da cota
+    page1.get_by_role("link", name="Imprimir Extrato").click()
+    page1.locator("#ctl00_Conteudo_btnImprimir").click()
+
+    with page1.expect_popup() as page_extrato_info:
+        page1.get_by_role("button", name="Imprimir").click()
+    page_extrato = page_extrato_info.value
+    page_extrato.wait_for_load_state("networkidle")
+
+    resposta = context.request.get(page_extrato.url)
+    with open(pasta / f"extrato_{grupo}_{cota}.pdf", "wb") as arquivo:
+        arquivo.write(resposta.body())
+
+    page_extrato.close()
+
+    # Emitir taxa de transferencia
+    page1.get_by_role("link", name="Emissão de Cobrança").click()
+    linha_taxa = page1.locator("#ctl00_Conteudo_grdBoleto_Avulso tr").filter(has_text="RECBTO. TAXA TRANSF")
+    linha_taxa.locator("[id*='imgEmite_Boleto']").click()
+    page1.wait_for_load_state("networkidle")
+
+    with page1.expect_popup(predicate=eh_relatorio) as page_taxa_info:
+        page1.get_by_role("button", name="Emitir Cobrança", exact=True).click()
+    page_taxa = page_taxa_info.value
+    page_taxa.wait_for_load_state("networkidle")
+
+    resposta = context.request.get(page_taxa.url)
+    with open(pasta / f"taxa_{grupo}-{cota}.pdf", "wb") as arquivo:
+        arquivo.write(resposta.body())
+
+    page_taxa.close()
+
+    page2.get_by_role("tab", name="Documentos").click()
+    linha_comprovante_envio = page2.locator(".MuiDataGrid-row").filter(has_text="COMPROVANTE DE ENVIO DO TERMO ORIGINAL")
+    linha_comprovante_envio.get_by_test_id("FileUploadIcon").click()
+    page2.get_by_label("", exact=True).set_input_files(caminho_termo)
+    page2.get_by_role("button", name="Confirmar").click()
+
+    linha_termo_cessao = page2.locator(".MuiDataGrid-row").filter(
+        has_text="TERMO DE CESSÃO - TRANSFERÊNCIA")
+    linha_termo_cessao.get_by_test_id("FileUploadIcon").click()
+    page2.get_by_label("", exact=True).set_input_files(caminho_termo)
+    page2.get_by_role("button", name="Confirmar").click()
+
+    page2.get_by_test_id("ArrowBackIcon").click()
+    if MODO_TESTE:
+        print("Não podemos mandar o termo em MODO TESTE!")
+        sys.exit()
+    else:
+        page2.get_by_role("button", name="Concluir").click()
+
+    page2.get_by_role("button", name="Processos").click()
+    page2.wait_for_timeout(60500)
+    page2.reload()
+    page2.get_by_role("combobox", name="Pesquisar por Nome").click()
+    page2.get_by_role("option", name="Grupo/Cota").click()
+    page2.get_by_role("textbox", name="Descrição").fill(f"{grupo}/{cota}")
+    page2.locator("[data-testid='FilterAltIcon'].MuiSvgIcon-fontSizeMedium").click()
+    page2.wait_for_timeout(2500)
+    verificar_qnt_processos = page2.get_by_role("button", name="Todos").text_content().strip()
+    if verificar_qnt_processos != "Todos (0)":
+        print("Esse processo não foi para análise, verificar se a taxa foi paga")
+    else:
+        print("Processo foi para análise")
+
 
     input("\nEsperando Enter pra finalizar")
     # ---------------------
