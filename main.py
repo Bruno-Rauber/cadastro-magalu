@@ -233,7 +233,7 @@ with open(caminho_arquivo, "r", encoding="utf-8") as arquivo:
 prompt = f"""Preciso que me dê um JSON. Somente JSON de resposta! No seguinte formato abaixo:
 
 {{
-"cliente": {{ "renda": "renda": "aqui vai o valor (formato numérico, ex: 2500,00 - sem R$, sem ponto de milhar, use vírgula para os centavos; se o valor não tiver centavos, acrescente ,00 no final)"", "profissao": "aqui vai o valor", "email": "aqui vai o valor", "telefone": "aqui vai o valor sem DDD e sem +55 (se o texto trouxer DDD, remova os 2 primeiros dígitos e devolva só o número local) tome cuidado pra não duplicar numeros principalemnte "9" em sequencia, "estado_civil": "aqui vai o valor !sempre devolver no masculino Ex: casada devolver casado(solteiro, casado, divorciado, desquitado, separado judicialmente, uniao estavel, viuvo ou outro)", "sexo": "aqui vai o valor"  }},
+"cliente": {{ "renda": "renda": "aqui vai o valor (formato numérico, ex: 2500,00 - sem R$, sem ponto de milhar, use vírgula para os centavos; se o valor não tiver centavos, acrescente ,00 no final)"", "profissao": "aqui vai o valor", "email": "aqui vai o valor", "telefone": "aqui vai o valor sem DDD e sem +55 o resto você devolve do jeito que vier) tome cuidado pra não duplicar numeros principalemnte "9" em sequencia, "estado_civil": "aqui vai o valor !sempre devolver no masculino Ex: casada devolver casado(solteiro, casado, divorciado, desquitado, separado judicialmente, uniao estavel, viuvo ou outro)", "sexo": "aqui vai o valor"  }},
 "conjuge": null ou {{ "nome": "aqui vai o valor", "data_de_nascimento: "aqui vai o valor", "cpf": "aqui vai o valor", "profissao": "aqui vai o valor", "renda": "renda": "aqui vai o valor (formato numérico, ex: 2500,00 - sem R$, sem ponto de milhar, use vírgula para os centavos; se o valor não tiver centavos, acrescente ,00 no final)", "sexo": "aqui vai o valor" }}
 }}
 
@@ -370,9 +370,9 @@ ficha_final["cliente"]["sexo"] = ficha_final["cliente"]["sexo"].upper()
 if ficha_final["conjuge"] is not None:
     ficha_final["conjuge"]["sexo"] = ficha_final["conjuge"]["sexo"].upper()
 
-# Telefone sem DDD deve ter 8 ou 9 dígitos. Quando a IA erra por causa de
-# dígitos repetidos em sequência (ex: "999698969" virar "9999698969"), o erro
-# mais comum é duplicar o primeiro dígito — corrigimos removendo-o nesse caso.
+# Telefone: a IA só copia o número do texto, sem transformar.
+# A normalização fica aqui no código, que faz sempre a mesma coisa.
+# O Magalu preenche o DDD pela cidade, então o campo recebe só o número local (8 ou 9 dígitos).
 
 telefone_limpo = ""
 for caractere in ficha_final["cliente"]["telefone"]:
@@ -381,11 +381,12 @@ for caractere in ficha_final["cliente"]["telefone"]:
 
 ficha_final["cliente"]["telefone"] = telefone_limpo
 
-if len(ficha_final["cliente"]["telefone"]) == 10:
-    ficha_final["cliente"]["telefone"] = ficha_final["cliente"]["telefone"][1:]
-
-if len(ficha_final["cliente"]["telefone"]) > 10:
+# 11 dígitos = DDD + celular; 10 dígitos = DDD + número de 8 dígitos
+if len(ficha_final["cliente"]["telefone"]) in (10, 11):
     ficha_final["cliente"]["telefone"] = ficha_final["cliente"]["telefone"][2:]
+
+if len(ficha_final["cliente"]["telefone"]) not in (8, 9):
+    raise ValueError(f"Telefone com tamanho inválido: {ficha_final['cliente']['telefone']}. Confira o texto_whats.txt")
 
 # Normaliza o numero caso a I.A devolve com complemento
 ficha_final["cliente"]["numero"] = ficha_final["cliente"]["numero"].split()[0]
