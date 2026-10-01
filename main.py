@@ -49,7 +49,15 @@ else:
     cota = input("Digite a cota para esse processo: ").strip()
 
 if not grupo or not cota:
-    raise ValueError("Você não colocou o grupo ou a cota. Rode de novo")
+    raise ValueError("Grupo ou cota não informados.")
+
+pasta_processo = pasta / f"{grupo}_{cota}"
+pasta_documentos = pasta_processo / "Documentos"
+
+if not pasta_documentos.exists():
+    os.makedirs(pasta_documentos)
+    (pasta_documentos / "texto_whats.txt").touch()
+    input("A pasta do processo foi criada. Salve os documentos, coloque as informações no texto_whats.txt e aperte Enter para continuar: ")
 
 if MODO_TESTE:
     print("⚠️ RODANDO EM MODO TESTE")
@@ -217,7 +225,7 @@ def portao(dados_pessoa, pessoa):
 # Extração via IA (mensagem do WhatsApp + documentos)
 # =====================================================================
 
-caminho_arquivo = pasta / "texto_whats.txt"
+caminho_arquivo = pasta_documentos / "texto_whats.txt"
 
 with open(caminho_arquivo, "r", encoding="utf-8") as arquivo:
     texto_whats = arquivo.read()
@@ -263,7 +271,7 @@ prompt_endereco = f"""Preciso que me dê um JSON. Somente JSON de resposta! No s
 
 {{
 "logradouro": "aqui vai o valor",
-"numero": "aqui vai o valor",
+"numero": "aqui vai o valor, apenas o numero sem complemento",
 "bairro": "aqui vai o valor",
 "cep": "aqui vai o valor",
 "cidade": "aqui vai o valor",
@@ -283,14 +291,14 @@ resposta = client.messages.create(
     messages=[{"role": "user", "content": prompt}]
 )
 
-arquivos_endereco = list(pasta.glob("endereco.*"))
+arquivos_endereco = list(pasta_documentos.glob("endereco.*"))
 
 if not arquivos_endereco:
     raise FileNotFoundError("Não encontrei o arquivo com nome endereco na pasta")
 else:
     caminho_arquivo_endereco = arquivos_endereco[0]
 
-arquivos_cnh = list(pasta.glob("cnh.*"))
+arquivos_cnh = list(pasta_documentos.glob("cnh.*"))
 
 if not arquivos_cnh:
     raise FileNotFoundError("Não encontrei o arquivo com nome cnh na pasta")
@@ -378,6 +386,9 @@ if len(ficha_final["cliente"]["telefone"]) == 10:
 
 if len(ficha_final["cliente"]["telefone"]) > 10:
     ficha_final["cliente"]["telefone"] = ficha_final["cliente"]["telefone"][2:]
+
+# Normaliza o numero caso a I.A devolve com complemento
+ficha_final["cliente"]["numero"] = ficha_final["cliente"]["numero"].split()[0]
 
 # Estado civil: calculado uma única vez aqui, reaproveitado tanto no portão
 # quanto dentro do Playwright (adicionar_dados_cliente) para decidir o combo
@@ -613,6 +624,7 @@ def run(playwright: Playwright) -> None:
         page3.get_by_role("button", name="Salvar").click()
         page3.wait_for_load_state("networkidle")
 
+
         linha_recem_criada = page3.locator("#tableEndereco tr").filter(has_text=ficha_final["cliente"]["logradouro"]).filter(
             has_text=ficha_final["cliente"]["numero"]).filter(has_text=ficha_final["cliente"]["cidade"])
         linha_recem_criada.locator("a[id*='lnkDefinirPrincipal']").click()
@@ -710,8 +722,8 @@ def run(playwright: Playwright) -> None:
     page3.locator("#ctl00_Conteudo_btnAvancar").click(timeout=60000)
     page3.wait_for_load_state("networkidle")
 
-    # Bloco para anexar documentos (reaproveita a mesma `pasta` do topo do arquivo)
-    lista_todos_arquivos = os.listdir(pasta)
+    # Bloco para anexar documentos (lê da `pasta_documentos` definida no topo do arquivo)
+    lista_todos_arquivos = os.listdir(pasta_documentos)
     arquivos_cnh_upload = []
     arquivos_endereco_upload = []
     arquivos_certidao_upload = []
@@ -733,7 +745,7 @@ def run(playwright: Playwright) -> None:
     linha_endereco = page3.locator(".documentos-lista-items").filter(has_text="COMPROVANTE DE RESIDÊNCIA")
     linha_endereco.locator("a[id*='lbkUpload']").click()
     for arquivo_endereco in arquivos_endereco_upload:
-        page3.locator("#ctl00_Conteudo_rptCessionarios_ctl00_wucDocumentosWorkflow_fileUploadEdicao").set_input_files(f"{pasta}/{arquivo_endereco}")
+        page3.locator("#ctl00_Conteudo_rptCessionarios_ctl00_wucDocumentosWorkflow_fileUploadEdicao").set_input_files(f"{pasta_documentos}/{arquivo_endereco}")
     page3.get_by_role("button", name="Confirmar").click()
 
     # Bloco para anexar documentos de certidao/ comprovacao estado civil
@@ -741,7 +753,7 @@ def run(playwright: Playwright) -> None:
     linha_certidao.locator("a[id*='lbkUpload']").click()
     for arquivo_certidao in arquivos_certidao_upload:
         page3.locator("#ctl00_Conteudo_rptCessionarios_ctl00_wucDocumentosWorkflow_fileUploadEdicao").set_input_files(
-            f"{pasta}/{arquivo_certidao}")
+            f"{pasta_documentos}/{arquivo_certidao}")
     page3.get_by_role("button", name="Confirmar").click()
 
     # Bloco para anexar documentos pessoais CNH / ETC
@@ -749,7 +761,7 @@ def run(playwright: Playwright) -> None:
     linha_cnh.locator("a[id*='lbkUpload']").click()
     for arquivo_cnh in arquivos_cnh_upload:
         page3.locator("#ctl00_Conteudo_rptCessionarios_ctl00_wucDocumentosWorkflow_fileUploadEdicao").set_input_files(
-            f"{pasta}/{arquivo_cnh}")
+            f"{pasta_documentos}/{arquivo_cnh}")
     page3.get_by_role("button", name="Confirmar").click()
 
     # Bloco para anexar documentos comprovacao de Renda
@@ -757,7 +769,7 @@ def run(playwright: Playwright) -> None:
     linha_renda.locator("a[id*='lbkUpload']").click()
     for arquivo_renda in arquivos_renda_upload:
         page3.locator("#ctl00_Conteudo_rptCessionarios_ctl00_wucDocumentosWorkflow_fileUploadEdicao").set_input_files(
-            f"{pasta}/{arquivo_renda}")
+            f"{pasta_documentos}/{arquivo_renda}")
     page3.get_by_role("button", name="Confirmar").click()
 
     page3.get_by_role("button", name="Continuar").click()
@@ -773,7 +785,7 @@ def run(playwright: Playwright) -> None:
 
 
     # Gerar e baixar o termo de cessão (bloco já testado e validado)
-    caminho_termo = str(pasta / f"termo_{grupo}_{cota}.pdf")
+    caminho_termo = str(pasta_processo / f"termo_{grupo}_{cota}.pdf")
     page2.get_by_role("button", name="Processos").click()
     page2.wait_for_timeout(60500)
     page2.reload()
@@ -811,7 +823,7 @@ def run(playwright: Playwright) -> None:
     page_extrato.wait_for_load_state("networkidle")
 
     resposta = context.request.get(page_extrato.url)
-    with open(pasta / f"extrato_{grupo}_{cota}.pdf", "wb") as arquivo:
+    with open(pasta_processo / f"extrato_{grupo}_{cota}.pdf", "wb") as arquivo:
         arquivo.write(resposta.body())
 
     page_extrato.close()
@@ -828,7 +840,7 @@ def run(playwright: Playwright) -> None:
     page_taxa.wait_for_load_state("networkidle")
 
     resposta = context.request.get(page_taxa.url)
-    with open(pasta / f"taxa_{grupo}-{cota}.pdf", "wb") as arquivo:
+    with open(pasta_processo / f"taxa_{grupo}_{cota}.pdf", "wb") as arquivo:
         arquivo.write(resposta.body())
 
     page_taxa.close()
