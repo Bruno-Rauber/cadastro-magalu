@@ -42,7 +42,7 @@ caminho_pasta = os.getenv("PASTA_TRABALHO")
 if caminho_pasta:
     pasta = Path(caminho_pasta) # o caminho real da sua pasta
 else:
-    raise ValueError("Não existe um caminho na variável PASTA_TRABALHO no .env")
+    raise ValueError("Não existe um caminho da pasta no .env")
 
 MODO_TESTE = True
 
