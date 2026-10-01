@@ -12,6 +12,7 @@ from playwright.sync_api import Playwright, sync_playwright, expect
 load_dotenv()  # lê o arquivo .env e carrega as variáveis
 chave = os.getenv("ANTHROPIC_API_KEY")
 
+
 usuarios = {
     "impulsionar": {
     "chapa": os.getenv("IMPULSIONAR_CHAPA"),
@@ -36,7 +37,12 @@ if usuario_entrada in usuarios:
 else:
     raise ValueError("Esse usuário não existe ou não foi cadastrado")
 
-pasta = Path(r"C:\Users\bruno\Desktop\CadastroMagalu\SubirCadastro")  # o caminho real da sua pasta
+caminho_pasta = os.getenv("PASTA_TRABALHO")
+
+if caminho_pasta:
+    pasta = Path(caminho_pasta) # o caminho real da sua pasta
+else:
+    raise ValueError("Não existe um caminho na variável PASTA_TRABALHO no .env")
 
 MODO_TESTE = True
 
