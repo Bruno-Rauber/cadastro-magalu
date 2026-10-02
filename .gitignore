@@ -5,10 +5,9 @@ venv/
 *.png
 __pycache__/
 teste.py
-teste_playwright.py
-estado_login.json
-salvar_login.py
-emitir_extrato.py
-termo.py
-gerar_lista_profissoes.py
-profissoes_magalu.json
+para_testes/teste_playwright.py
+para_testes/estado_login.json
+para_testes/salvar_login.py
+para_testes/emitir_extrato.py
+para_testes/termo.py
+para_testes/gerar_lista_profissoes.py
