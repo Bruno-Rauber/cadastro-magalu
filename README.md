@@ -22,8 +22,29 @@ Hoje a história muda: leva cerca de 5 minutos, somando iniciar o script, salvar
 - Envia o processo para análise, anexando o termo que foi salvo
 - Verifica se o processo realmente foi para análise e avisa o usuário
 
-
-
+## Como funciona
+```mermaid
+flowchart TD
+    A(["Início"]) --> B["Escolhe o usuário<br>e o grupo/cota"]
+    B --> C["Prepara a pasta<br>(cria e pausa, se for nova)"]
+    C --> D["IA extrai os dados<br>do WhatsApp, da CNH<br>e do comprovante"]
+    D --> E["Valida o CPF e<br>padroniza os dados"]
+    E --> F{"Ficha completa<br>e válida?"}
+    F -- Não --> G(["Para antes do Magalu<br>e mostra o que falta"])
+    F -- Sim --> H["Entra no Magalu e abre<br>a transferência da cota"]
+    H --> I{"Já existe transferência<br>em andamento?"}
+    I -- Sim --> J["Cancela a anterior"]
+    J --> K["Preenche o cadastro<br>do cliente<br>(e do cônjuge, se houver)"]
+    I -- Não --> K
+    K --> L["Anexa os documentos<br>e confirma a solicitação"]
+    L --> M["Gera termo, extrato e taxa<br>e anexa o termo"]
+    M --> N{"Modo teste?"}
+    N -- Sim --> O(["Encerra sem enviar"])
+    N -- Não --> P["Envia para análise"]
+    P --> Q{"Foi para análise?"}
+    Q -- Sim --> R(["Processo em análise"])
+    Q -- Não --> S(["Avisa: conferir<br>se a taxa foi paga"])
+```
 
 ## Como rodar
 
@@ -145,6 +166,7 @@ Acréscimos que fortaleceram o projeto, que eu analisei e aprovei. Exemplos:
 
 - A ideia do `MODO_TESTE`
 - Varredura do histórico do Git atrás de dados sensíveis
+- O diagrama foi montado pela IA a partir da lista de passos que eu escrevi, e eu revisei
 
 ### Formatação e português
 
