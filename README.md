@@ -1,6 +1,10 @@
 # Cadastro Magalu
 Script em Python que organiza documentos de clientes e sobe processos de transferência de consórcio no sistema da Magalu.
 Mas o que é esse processo de transferência? A resposta mais curta para isso seria: um cliente compra a cota de outra pessoa, e a administradora precisa do cadastro do novo titular, com documentos, para analisar a troca.
+  
+![Demonstração em modo teste com cliente fictício](docs/demonstracao.gif)
+
+Áreas pixeladas escondem dados reais da cota usada no teste.
 ## O problema
 No fluxo do meu trabalho (subir processos no sistema da Magalu), tenho um problema: esse fluxo é repetitivo, manual e tem risco de erro humano. Subir um processo no sistema da Magalu significa extrair os dados do cliente por meio dos documentos pessoais, escrevê-los nos formulários do sistema e anexar os arquivos para o processo ir para análise. Antes, todo esse processo era feito manualmente e demorava cerca de 20 a 30 minutos:
 - Salvar os documentos recebidos em uma pasta na área de trabalho
