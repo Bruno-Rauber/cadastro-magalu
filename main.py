@@ -68,6 +68,26 @@ if not pasta_documentos.exists():
 else:
     os.startfile(pasta_documentos)
 
+# Bloco de verificação se os documentos necessáriso estão na pasta
+arquivos_endereco = list(pasta_documentos.glob("endereco.*"))
+
+if not arquivos_endereco:
+    raise FileNotFoundError("Não encontrei o arquivo com nome endereco na pasta")
+else:
+    caminho_arquivo_endereco = arquivos_endereco[0]
+
+arquivos_cnh = list(pasta_documentos.glob("cnh.*"))
+
+if not arquivos_cnh:
+    raise FileNotFoundError("Não encontrei o arquivo com nome cnh na pasta")
+else:
+    caminho_arquivo_cnh = arquivos_cnh[0]
+
+arquivos_certidao = list(pasta_documentos.glob("*certidao*"))
+
+if not arquivos_certidao:
+    raise FileNotFoundError("Não encontrei nenhum arquivo com certidao no nome na pasta")
+
 if MODO_TESTE:
     print("⚠️ RODANDO EM MODO TESTE")
 
@@ -299,20 +319,6 @@ resposta = client.messages.create(
     max_tokens=500,
     messages=[{"role": "user", "content": prompt}]
 )
-
-arquivos_endereco = list(pasta_documentos.glob("endereco.*"))
-
-if not arquivos_endereco:
-    raise FileNotFoundError("Não encontrei o arquivo com nome endereco na pasta")
-else:
-    caminho_arquivo_endereco = arquivos_endereco[0]
-
-arquivos_cnh = list(pasta_documentos.glob("cnh.*"))
-
-if not arquivos_cnh:
-    raise FileNotFoundError("Não encontrei o arquivo com nome cnh na pasta")
-else:
-    caminho_arquivo_cnh = arquivos_cnh[0]
 
 resposta_documento_cnh = client.messages.create(
     model="claude-sonnet-5",
