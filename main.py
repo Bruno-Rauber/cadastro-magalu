@@ -44,7 +44,7 @@ if caminho_pasta:
 else:
     raise ValueError("Não existe um caminho da pasta no .env")
 
-MODO_TESTE = True
+MODO_TESTE = False
 
 cpf_teste = os.getenv("CPF_TESTE")
 if MODO_TESTE:
@@ -63,7 +63,10 @@ pasta_documentos = pasta_processo / "Documentos"
 if not pasta_documentos.exists():
     os.makedirs(pasta_documentos)
     (pasta_documentos / "texto_whats.txt").touch()
+    os.startfile(pasta_documentos)
     input("A pasta do processo foi criada. Salve os documentos, coloque as informações no texto_whats.txt e aperte Enter para continuar: ")
+else:
+    os.startfile(pasta_documentos)
 
 if MODO_TESTE:
     print("⚠️ RODANDO EM MODO TESTE")
@@ -411,7 +414,6 @@ if codigo_estado_civil in ("1", "8") and ficha_final["conjuge"] is None:
 def eh_relatorio(pagina):
     return "frmConCmImpressao" in pagina.url
 
-
 if MODO_TESTE:
     ficha_final["cliente"]["cpf"] = cpf_teste
 # =====================================================================
@@ -421,6 +423,7 @@ if MODO_TESTE:
 def run(playwright: Playwright) -> None:
     browser = playwright.chromium.launch(headless=False)
     context = browser.new_context()
+    context.set_default_timeout(120000)  # todas as páginas do contexto, inclusive popups
     page = context.new_page()
     page.goto("https://portal.consorciomagalu.com.br/portal-consorcio/login")
     page.wait_for_load_state("networkidle")
@@ -870,6 +873,7 @@ def run(playwright: Playwright) -> None:
         sys.exit()
     else:
         page2.get_by_role("button", name="Concluir").click()
+        page2.get_by_role("button", name="Salvar").click()
 
     page2.get_by_role("button", name="Processos").click()
     page2.wait_for_timeout(60500)
