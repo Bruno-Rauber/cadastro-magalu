@@ -11,3 +11,4 @@ para_testes/salvar_login.py
 para_testes/emitir_extrato.py
 para_testes/termo.py
 para_testes/gerar_lista_profissoes.py
+.idea/
