@@ -57,7 +57,11 @@ else:
 if not grupo or not cota:
     raise ValueError("Grupo ou cota não informados.")
 
-pasta_processo = pasta / f"{grupo}_{cota}"
+# No modo teste, a pasta ganha "-teste" no nome, para separar do cadastro real na pasta de trabalho.
+if MODO_TESTE:
+    pasta_processo = pasta / f"{grupo}_{cota}-teste"
+else:
+    pasta_processo = pasta / f"{grupo}_{cota}"
 pasta_documentos = pasta_processo / "Documentos"
 
 if not pasta_documentos.exists():
