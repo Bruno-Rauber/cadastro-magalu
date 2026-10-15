@@ -426,6 +426,15 @@ def eh_relatorio(pagina):
 
 if MODO_TESTE:
     ficha_final["cliente"]["cpf"] = cpf_teste
+
+# CPF: a IA devolve com ou sem pontos, do jeito que leu no documento ou no texto.
+# Aqui fica só com os números, sempre no mesmo formato (o Magalu aceita assim).
+# Fica depois do modo teste para valer também para o CPF de teste.
+ficha_final["cliente"]["cpf"] = ficha_final["cliente"]["cpf"].replace(".", "").replace("-", "")
+
+if ficha_final["conjuge"] is not None:
+    ficha_final["conjuge"]["cpf"] = ficha_final["conjuge"]["cpf"].replace(".", "").replace("-", "")
+
 # =====================================================================
 # Automação Playwright (preenchimento no Magalu)
 # =====================================================================
