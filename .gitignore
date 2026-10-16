@@ -1,14 +1,21 @@
+# Ambiente e segredos
 venv/
 .env
+
+# Documentos e PDFs de clientes
 *.pdf
 *.jpg
 *.png
-__pycache__/
+
+# Histórico em SQLite (tem CPF e endereço de clientes)
+historico-cadastros/
+*.db
+*.db-journal
+
+# Testes e rascunhos locais
 teste.py
-para_testes/teste_playwright.py
-para_testes/estado_login.json
-para_testes/salvar_login.py
-para_testes/emitir_extrato.py
-para_testes/termo.py
-para_testes/gerar_lista_profissoes.py
+para_testes/
+
+# PyCharm e Python
 .idea/
+__pycache__/

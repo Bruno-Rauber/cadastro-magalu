@@ -304,7 +304,7 @@ prompt_endereco = f"""Preciso que me dê um JSON. Somente JSON de resposta! No s
 
 {{
 "logradouro": "aqui vai o valor",
-"numero": "aqui vai o valor, apenas o numero sem complemento",
+"numero": "aqui vai o valor, apenas o numero sem complemento e se não tiver coloque S/N",
 "bairro": "aqui vai o valor",
 "cep": "aqui vai o valor",
 "cidade": "aqui vai o valor",
