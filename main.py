@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 import anthropic
 from playwright.sync_api import Playwright, sync_playwright, expect
 
+from db import conectar
+
 load_dotenv()  # lê o arquivo .env e carrega as variáveis
 chave = os.getenv("ANTHROPIC_API_KEY")
 
@@ -43,6 +45,15 @@ if caminho_pasta:
     pasta = Path(caminho_pasta) # o caminho real da sua pasta
 else:
     raise ValueError("Não existe um caminho da pasta no .env")
+
+# Histórico em SQLite: o banco fica fora do Google Drive, porque a sincronização
+# pode travar ou estragar o arquivo durante uma gravação.
+caminho_historico = os.getenv("CAMINHO_HISTORICO")
+
+if caminho_historico:
+    conexao_historico = conectar(caminho_historico)
+else:
+    raise ValueError("Não existe um caminho do banco do histórico no .env")
 
 MODO_TESTE = False
 
