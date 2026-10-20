@@ -478,7 +478,6 @@ if ficha_final["conjuge"] is not None:
                      ficha_final["conjuge"]["data_de_nascimento"], ficha_final["conjuge"]["sexo"], ficha_final["conjuge"]["profissao"], ficha_final["conjuge"]["renda"]))
 conexao.commit()
 
-input("Encerrar")
 # =====================================================================
 # Automação Playwright (preenchimento no Magalu)
 # =====================================================================
@@ -931,8 +930,15 @@ def run(playwright: Playwright) -> None:
     page2.get_by_role("button", name="Confirmar").click()
 
     page2.get_by_test_id("ArrowBackIcon").click()
+
     if MODO_TESTE:
         print("Não podemos mandar o termo em MODO TESTE!")
+        agora = datetime.now()
+        finalizado_em = agora.strftime("%Y-%m-%d %H:%M:%S")
+        conexao.execute("UPDATE execucoes SET estado = ?, finalizado_em = ? WHERE id = ?",
+                                 ('teste', finalizado_em, execucao_id))
+        conexao.commit()
+        conexao.close()
         sys.exit()
     else:
         page2.get_by_role("button", name="Concluir").click()
@@ -947,14 +953,24 @@ def run(playwright: Playwright) -> None:
     page2.locator("[data-testid='FilterAltIcon'].MuiSvgIcon-fontSizeMedium").click()
     page2.wait_for_timeout(2500)
     verificar_qnt_processos = page2.get_by_role("button", name="Todos").text_content().strip()
+
+    estado = ""
+    agora = datetime.now()
+    finalizado_em = agora.strftime("%Y-%m-%d %H:%M:%S")
+
     if verificar_qnt_processos != "Todos (0)":
         print("Esse processo não foi para análise, verificar se a taxa foi paga")
+        estado = "pendência"
     else:
         print("Processo foi para análise")
+        estado = "em análise"
 
-
-    input("\nEsperando Enter pra finalizar")
+    conexao.execute("UPDATE execucoes SET estado = ?, finalizado_em = ? WHERE id = ?",
+                             (estado, finalizado_em, execucao_id))
     # ---------------------
+    conexao.commit()
+    conexao.close()
+    input("Esperando enter para finalizar")
     context.close()
     browser.close()
 
