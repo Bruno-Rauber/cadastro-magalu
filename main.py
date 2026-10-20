@@ -4,6 +4,7 @@ import json
 import base64
 import sys
 from pathlib import Path
+from datetime import datetime
 
 from dotenv import load_dotenv
 import anthropic
@@ -446,6 +447,38 @@ ficha_final["cliente"]["cpf"] = ficha_final["cliente"]["cpf"].replace(".", "").r
 if ficha_final["conjuge"] is not None:
     ficha_final["conjuge"]["cpf"] = ficha_final["conjuge"]["cpf"].replace(".", "").replace("-", "")
 
+
+# =====================================================================
+    # Gravar execução e Dados do cliente no banco
+# =====================================================================
+conexao = conexao_historico
+modo_teste_banco = 0
+if MODO_TESTE:
+    modo_teste_banco = 1
+
+agora = datetime.now()
+iniciado_em = agora.strftime("%Y-%m-%d %H:%M:%S")
+
+cursor = conexao.execute("""INSERT INTO execucoes (iniciado_em, conta, grupo, cota, modo_teste, estado) VALUES (?, ?, ?, ?, ?, ?)""",
+                (iniciado_em, usuario_entrada, grupo, cota, modo_teste_banco, 'iniciado'))
+execucao_id = cursor.lastrowid
+
+conexao.execute(""" INSERT INTO pessoas (papel, execucao_id, nome, cpf, data_de_nascimento, sexo, estado_civil, profissao, renda, telefone, email, 
+cep, logradouro, numero, bairro, cidade, uf) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ('cliente', execucao_id, ficha_final["cliente"]["nome"], ficha_final["cliente"]["cpf"],
+                 ficha_final["cliente"]["data_de_nascimento"], ficha_final["cliente"]["sexo"], ficha_final["cliente"]["estado_civil"],
+                 ficha_final["cliente"]["profissao"], ficha_final["cliente"]["renda"], ficha_final["cliente"]["telefone"],
+                 ficha_final["cliente"]["email"], ficha_final["cliente"]["cep"],
+                 ficha_final["cliente"]["logradouro"], ficha_final["cliente"]["numero"], ficha_final["cliente"]["bairro"],
+                 ficha_final["cliente"]["cidade"], ficha_final["cliente"]["uf"]))
+
+if ficha_final["conjuge"] is not None:
+    conexao.execute("""INSERT INTO pessoas (papel, execucao_id, nome, cpf, data_de_nascimento, sexo, profissao, renda) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    ('conjuge', execucao_id, ficha_final["conjuge"]["nome"], ficha_final["conjuge"]["cpf"],
+                     ficha_final["conjuge"]["data_de_nascimento"], ficha_final["conjuge"]["sexo"], ficha_final["conjuge"]["profissao"], ficha_final["conjuge"]["renda"]))
+conexao.commit()
+
+input("Encerrar")
 # =====================================================================
 # Automação Playwright (preenchimento no Magalu)
 # =====================================================================
