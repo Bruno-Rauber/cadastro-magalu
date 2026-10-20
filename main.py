@@ -531,7 +531,7 @@ def run(playwright: Playwright) -> None:
     page3.get_by_role("button", name="Localizar").click()
     linha_titular = page3.locator("tr", has_text=titular_tratado)
     linha_titular.locator("a").click()
-
+    page3.wait_for_load_state("networkidle")
     mensagem_solicitacao = page3.locator(".mensagem-solicitacao-andamento")
     if mensagem_solicitacao.is_visible():
         page3.get_by_role("button", name="Cancelar Solicitação").click()
