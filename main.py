@@ -76,9 +76,30 @@ else:
     pasta_processo = pasta / f"{grupo}_{cota}"
 pasta_documentos = pasta_processo / "Documentos"
 
+# Modelo do texto_whats.txt: com um rótulo por campo, a IA não precisa adivinhar
+# o que é cada valor, e dá pra ver o que falta antes de rodar. Os cabeçalhos
+# repetem os nomes que o prompt do WhatsApp usa para separar cliente e cônjuge.
+modelo_texto_whats = """Dados do cliente:
+sexo:
+renda:
+estado civil:
+profissão:
+email:
+telefone:
+
+Dados do cônjuge:
+cpf:
+nome:
+sexo:
+renda:
+profissão:
+data de nascimento:
+"""
+
 if not pasta_documentos.exists():
     os.makedirs(pasta_documentos)
-    (pasta_documentos / "texto_whats.txt").touch()
+    with open(pasta_documentos / "texto_whats.txt", "w", encoding="utf-8") as arquivo:
+        arquivo.write(modelo_texto_whats)
     os.startfile(pasta_documentos)
     input("A pasta do processo foi criada. Salve os documentos, coloque as informações no texto_whats.txt e aperte Enter para continuar: ")
 else:
@@ -371,6 +392,26 @@ if json_dados_endereco["bairro"] is None:
 
 if not verificador_cpf(json_dados_cnh["cpf"]):
     json_dados_cnh["cpf"] = None
+
+# Com o modelo do texto_whats.txt, um rótulo sem valor pode voltar da IA como texto
+# vazio em vez de null. Texto vazio vira None, para o portão pegar.
+for chave, valor in json_dados_por_escrito["cliente"].items():
+    if valor == "":
+        json_dados_por_escrito["cliente"][chave] = None
+
+# Cliente sem cônjuge: a seção do cônjuge fica vazia no modelo, e a IA pode devolver
+# o cônjuge com todos os campos vazios em vez de null. Nesse caso, fica sem cônjuge.
+# Casado ou em união estável sem cônjuge continua barrado mais abaixo, pelo estado civil.
+if json_dados_por_escrito["conjuge"] is not None:
+    conjuge_tem_dado = False
+    for chave, valor in json_dados_por_escrito["conjuge"].items():
+        if valor == "":
+            json_dados_por_escrito["conjuge"][chave] = None
+        elif valor is not None:
+            conjuge_tem_dado = True
+
+    if not conjuge_tem_dado:
+        json_dados_por_escrito["conjuge"] = None
 
 if json_dados_por_escrito["conjuge"] is not None and not verificador_cpf(json_dados_por_escrito["conjuge"]["cpf"]):
     json_dados_por_escrito["conjuge"]["cpf"] = None
