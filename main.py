@@ -168,22 +168,14 @@ def tratar_resposta(resposta_IA):
     return json_limpo
 
 
-def verificar_json(texto_json, content_retry, fallback):
+# Converte o texto da IA em dicionário. Se o JSON vier quebrado, o script para aqui,
+# antes do Magalu, e é só rodar de novo (custa só a extração).
+def verificar_json(texto_json):
     try:
         dados = json.loads(texto_json)
         return dados
     except json.JSONDecodeError:
-        try:
-            resposta2 = client.messages.create(
-                model="claude-haiku-4-5",
-                max_tokens=500,
-                messages=[{"role": "user", "content": content_retry}]
-            )
-            texto_json2 = tratar_resposta(resposta2)
-            dados = json.loads(texto_json2)
-            return dados
-        except json.JSONDecodeError:
-            return fallback
+        raise ValueError("A IA devolveu um JSON quebrado. Rode o script de novo")
 
 
 def montar_bloco_arquivo(caminho_arquivo):
@@ -369,23 +361,11 @@ resposta_docuemnto_endeco = client.messages.create(
     messages=[{"role": "user", "content": [montar_bloco_arquivo(caminho_arquivo_endereco), {"type": "text", "text": prompt_endereco}]}],
 )
 
-json_dados_por_escrito = verificar_json(
-    tratar_resposta(resposta),
-    prompt,
-    {"cliente": {"renda": None, "profissao": None, "email": None, "telefone": None, "estado_civil": None}, "conjuge": None, "sexo": None}
-)
+json_dados_por_escrito = verificar_json(tratar_resposta(resposta))
 
-json_dados_cnh = verificar_json(
-    tratar_resposta(resposta_documento_cnh),
-    [montar_bloco_arquivo(caminho_arquivo_cnh), {"type": "text", "text": prompt_documento}],
-    {"nome": None, "cpf": None, "data_de_nascimento": None}
-)
+json_dados_cnh = verificar_json(tratar_resposta(resposta_documento_cnh))
 
-json_dados_endereco = verificar_json(
-    tratar_resposta(resposta_docuemnto_endeco),
-    [montar_bloco_arquivo(caminho_arquivo_endereco), {"type": "text", "text": prompt_endereco}],
-    {"logradouro": None, "numero": None, "bairro": None, "cep": None, "cidade": None, "uf": None}
-)
+json_dados_endereco = verificar_json(tratar_resposta(resposta_docuemnto_endeco))
 
 if json_dados_endereco["bairro"] is None:
     json_dados_endereco["bairro"] = "Centro"
