@@ -128,6 +128,8 @@ if not arquivos_certidao:
 if MODO_TESTE:
     print("⚠️ RODANDO EM MODO TESTE")
 
+# lista para guardar tokens de chamadas da API
+chamadas_api = []
 client = anthropic.Anthropic(api_key=chave)
 
 # Lista de profissões cadastradas no sistema da Magalu (gerada uma única vez
@@ -343,11 +345,15 @@ Não use blocos de código markdown, nem texto antes ou depois — sua resposta 
 O arquivo será um documento de comprovante de residência, conta de luz/água e afins, sendo em PNG, JPEG ou PDF.
 """
 
+# Chamada de API para WhatssApp
 resposta = client.messages.create(
     model="claude-haiku-4-5",
     max_tokens=500,
     messages=[{"role": "user", "content": prompt}]
 )
+
+# Inclui na lista o dicionário com modelo, tokens de entrada e saída que serão utilizados no banco
+chamadas_api.append({"etapa": "whatsapp", "modelo": resposta.model, "tokens_entrada": resposta.usage.input_tokens, "tokens_saida": resposta.usage.output_tokens})
 
 resposta_documento_cnh = client.messages.create(
     model="claude-sonnet-5",
@@ -355,11 +361,15 @@ resposta_documento_cnh = client.messages.create(
     messages=[{"role": "user", "content": [montar_bloco_arquivo(caminho_arquivo_cnh), {"type": "text", "text": prompt_documento}]}],
 )
 
+chamadas_api.append({"etapa": "cnh", "modelo": resposta_documento_cnh.model, "tokens_entrada": resposta_documento_cnh.usage.input_tokens, "tokens_saida": resposta_documento_cnh.usage.output_tokens})
+
 resposta_docuemnto_endeco = client.messages.create(
     model="claude-sonnet-5",
     max_tokens=500,
     messages=[{"role": "user", "content": [montar_bloco_arquivo(caminho_arquivo_endereco), {"type": "text", "text": prompt_endereco}]}],
 )
+
+chamadas_api.append({"etapa": "endereco", "modelo": resposta_docuemnto_endeco.model, "tokens_entrada": resposta_docuemnto_endeco.usage.input_tokens, "tokens_saida": resposta_docuemnto_endeco.usage.output_tokens})
 
 json_dados_por_escrito = verificar_json(tratar_resposta(resposta))
 
@@ -497,6 +507,11 @@ if ficha_final["conjuge"] is not None:
     conexao.execute("""INSERT INTO pessoas (papel, execucao_id, nome, cpf, data_de_nascimento, sexo, profissao, renda) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                     ('conjuge', execucao_id, ficha_final["conjuge"]["nome"], ficha_final["conjuge"]["cpf"],
                      ficha_final["conjuge"]["data_de_nascimento"], ficha_final["conjuge"]["sexo"], ficha_final["conjuge"]["profissao"], ficha_final["conjuge"]["renda"]))
+
+for chamada in chamadas_api:
+    conexao.execute(""" INSERT INTO chamadas_api (execucao_id, etapa, modelo, tokens_entrada, tokens_saida) VALUES (?, ?, ?, ?, ?)""",
+                    (execucao_id, chamada["etapa"], chamada["modelo"], chamada["tokens_entrada"], chamada["tokens_saida"]))
+
 conexao.commit()
 
 # =====================================================================

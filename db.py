@@ -41,4 +41,16 @@ def conectar(caminho_banco):
         )
     """)
 
+    conexao.execute("""
+        CREATE TABLE IF NOT EXISTS chamadas_api (
+            id INTEGER PRIMARY KEY,
+            execucao_id INTEGER NOT NULL,
+            etapa TEXT NOT NULL,
+            modelo TEXT NOT NULL,
+            tokens_entrada INTEGER NOT NULL,
+            tokens_saida INTEGER NOT NULL,
+            FOREIGN KEY (execucao_id) REFERENCES execucoes(id)
+        )
+    """)
+
     return conexao
