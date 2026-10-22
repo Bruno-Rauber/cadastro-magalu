@@ -514,6 +514,24 @@ for chamada in chamadas_api:
 
 conexao.commit()
 
+# Custo da IA nesta execução, em dólares, com o preço por milhão de tokens de cada modelo
+# (página oficial da Anthropic, 22/10/2026). Modelo sem preço aqui não para o cadastro: só avisa.
+precos = {
+    "claude-haiku-4-5-20251001": {"entrada": 1, "saida": 5},
+    "claude-sonnet-5": {"entrada": 2, "saida": 10},
+}
+
+custo_total = 0
+for chamada in chamadas_api:
+    modelo = chamada["modelo"]
+    if modelo in precos:
+        preco = precos[modelo]
+        custo_total += (chamada["tokens_entrada"] * preco["entrada"] + chamada["tokens_saida"] * preco["saida"]) / 1000000
+    else:
+        print(f"Sem preço cadastrado para o modelo {modelo}: essa chamada ficou fora do custo")
+
+print(f"Custo da IA nesta execução: US$ {round(custo_total, 4)}")
+
 # =====================================================================
 # Automação Playwright (preenchimento no Magalu)
 # =====================================================================
