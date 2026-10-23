@@ -1,12 +1,12 @@
 # Cadastro Magalu
-Script em Python que organiza documentos de clientes e sobe processos de transferência de consórcio no sistema da Magalu.
+Script em Python que organiza documentos de clientes, sobe processos de transferência de consórcio no sistema da Magalu e guarda o histórico de cada execução em SQLite.
 Mas o que é esse processo de transferência? A resposta mais curta para isso seria: um cliente compra a cota de outra pessoa, e a administradora precisa do cadastro do novo titular, com documentos, para analisar a troca.
   
 ![Demonstração em modo teste com cliente fictício](docs/demonstracao.gif)
 
 Áreas pixeladas escondem dados reais da cota usada no teste.
 ## O problema
-No fluxo do meu trabalho (subir processos no sistema da Magalu), tenho um problema: esse fluxo é repetitivo, manual e tem risco de erro humano. Subir um processo no sistema da Magalu significa extrair os dados do cliente por meio dos documentos pessoais, escrevê-los nos formulários do sistema e anexar os arquivos para o processo ir para análise. Antes, todo esse processo era feito manualmente e demorava cerca de 20 a 30 minutos:
+No fluxo do meu trabalho (subir processos no sistema da Magalu), tenho um problema: esse fluxo é repetitivo, manual e tem risco de erro humano. Subir um processo no sistema da Magalu significa extrair os dados do cliente por meio dos documentos pessoais, escrevê-los nos formulários do sistema e anexar os arquivos para o processo ir para análise. Antes, todo esse processo era feito manualmente e demorava de 15 a 20 minutos:
 - Salvar os documentos recebidos em uma pasta na área de trabalho
 - Abrir o sistema da Magalu e os documentos salvos
 - Preencher os formulários de acordo com os documentos
@@ -14,7 +14,7 @@ No fluxo do meu trabalho (subir processos no sistema da Magalu), tenho um proble
 - Anexar os documentos
 - Conferir se o processo foi para análise de fato
 
-Hoje a história muda: leva cerca de 5 minutos, somando iniciar o script, salvar e renomear os documentos na pasta e toda a parte necessária no sistema da Magalu.
+Hoje a história muda: leva de 5 a 6 minutos, somando iniciar o script, salvar e renomear os documentos na pasta, preencher o `texto_whats.txt` e toda a parte necessária no sistema da Magalu.
 - O script cria a pasta do cliente
 - Manda os documentos pessoais pela API da Anthropic: a IA lê os documentos e o texto do WhatsApp, com as informações que não constam nos documentos, como profissão, renda, telefone e e-mail
 - Retorna todos os dados necessários para preencher o formulário
@@ -25,6 +25,7 @@ Hoje a história muda: leva cerca de 5 minutos, somando iniciar o script, salvar
 - Baixa o termo de transferência (contrato), o extrato da cota e o boleto da taxa do processo, e salva tudo na pasta do cliente que o script criou
 - Envia o processo para análise, anexando o termo que foi salvo
 - Verifica se o processo realmente foi para análise e avisa o usuário
+- Guarda num histórico em SQLite cada execução que chega ao sistema: o que foi enviado, quanto a IA custou e como terminou
 
 ## Como funciona
 ```mermaid
@@ -35,7 +36,8 @@ flowchart TD
     D --> E["Valida o CPF e<br>padroniza os dados"]
     E --> F{"Ficha completa<br>e válida?"}
     F -- Não --> G(["Para antes do Magalu<br>e mostra o que falta"])
-    F -- Sim --> H["Entra no Magalu e abre<br>a transferência da cota"]
+    F -- Sim --> T["Grava a execução<br>no histórico e mostra<br>o custo da IA"]
+    T --> H["Entra no Magalu e abre<br>a transferência da cota"]
     H --> I{"Já existe transferência<br>em andamento?"}
     I -- Sim --> J["Cancela a anterior"]
     J --> K["Preenche o cadastro<br>do cliente<br>(e do cônjuge, se houver)"]
@@ -43,11 +45,11 @@ flowchart TD
     K --> L["Anexa os documentos<br>e confirma a solicitação"]
     L --> M["Gera termo, extrato e taxa<br>e anexa o termo"]
     M --> N{"Modo teste?"}
-    N -- Sim --> O(["Encerra sem enviar"])
+    N -- Sim --> O(["Encerra sem enviar<br>(histórico: teste)"])
     N -- Não --> P["Envia para análise"]
     P --> Q{"Foi para análise?"}
-    Q -- Sim --> R(["Processo em análise"])
-    Q -- Não --> S(["Avisa: conferir<br>se a taxa foi paga"])
+    Q -- Sim --> R(["Processo em análise<br>(histórico: em análise)"])
+    Q -- Não --> S(["Avisa: conferir<br>se a taxa foi paga<br>(histórico: pendência)"])
 ```
 
 ## Como rodar
@@ -67,6 +69,8 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
+O histórico usa o `sqlite3`, que já vem com o Python, então não precisa instalar nada a mais.
+
 O arquivo `profissoes_magalu.json` precisa estar na pasta do projeto (já vem no repositório). Ele tem a lista de profissões cadastradas no Magalu, e a IA usa essa lista para escolher uma profissão que existe no sistema.
 
 ### Configuração do .env
@@ -80,6 +84,9 @@ ANTHROPIC_API_KEY=
 # Pasta onde o script cria as pastas dos processos (no Windows, coloque o caminho entre aspas simples)
 PASTA_TRABALHO=
 
+# Caminho completo do arquivo do histórico, terminando em .db (no Windows, também entre aspas simples)
+CAMINHO_HISTORICO=
+
 # Credenciais de cada conta da Magalu: um bloco por conta, com o nome da conta como prefixo
 REPRESENTANTE_FILIAL=
 REPRESENTANTE_CHAPA=
@@ -90,6 +97,10 @@ CPF_TESTE=
 GRUPO_TESTE=
 COTA_TESTE=
 ```
+
+As aspas simples evitam um problema no Windows: com aspas duplas, trechos do caminho como `\n` e `\b` viram caracteres especiais.
+
+A pasta do histórico precisa existir antes de rodar: o SQLite cria o arquivo `.db`, mas não cria a pasta. Eu uso a pasta `historico-cadastros/`, dentro do projeto, que já está no `.gitignore`.
 
 O script roda para mais de uma conta da Magalu. Para cada conta, além das variáveis no `.env`, é preciso adicionar uma entrada no dicionário `usuarios`, no topo do `main.py`. O nome da entrada, em letras minúsculas, é o que você digita quando o script pergunta a conta:
 
@@ -105,19 +116,19 @@ usuarios = {
 
 ### Organização da pasta
 
-Para cada processo, o script cria a pasta `{grupo}_{cota}` dentro da `PASTA_TRABALHO`, com a subpasta `Documentos` e o arquivo `texto_whats.txt`, e pausa para você salvar os documentos:
+Para cada processo, o script cria a pasta `{grupo}_{cota}` dentro da `PASTA_TRABALHO` (no modo teste, `{grupo}_{cota}-teste`), com a subpasta `Documentos` e o arquivo `texto_whats.txt`, e pausa para você salvar os documentos:
 
 - Documentos com dados pessoais (CNH ou RG) devem ser renomeados para `cnh`
 - Documentos com dados de endereço devem ser renomeados para `endereco`
-- A `cnh` e o `endereco` precisam estar em PDF, PNG ou JPG; outros formatos, como HEIC (comum em fotos de iPhone), não são aceitos
+- A `cnh` e o `endereco` precisam estar em PDF, PNG ou JPG, com a extensão em letras minúsculas (`.jpg`, e não `.JPG`); outros formatos, como HEIC (comum em fotos de iPhone), não são aceitos
 - Se um documento tiver mais de um arquivo, como o verso da CNH, o segundo pode se chamar `cnh2`: ele será anexado, mas não será lido pela IA
 - Documentos para comprovação de estado civil devem ser renomeados para `certidao`
 - Documentos para comprovação de renda não precisam ser renomeados, **mas todos os arquivos que sobrarem na pasta, exceto o `.txt`, serão anexados como renda**
-- No `texto_whats.txt`, coloque os dados do cliente que não aparecem nos documentos: profissão, renda, telefone, e-mail, estado civil, sexo e, se houver, os dados do cônjuge
+- O `texto_whats.txt` já vem com um modelo, que tem um rótulo para cada campo: preencha os dados do cliente que não aparecem nos documentos (sexo, renda, estado civil, profissão, e-mail e telefone) e, se houver, os dados do cônjuge. Se não houver cônjuge, deixe essa parte em branco
 
 ### Modo teste
 
-No topo do `main.py`, a variável `MODO_TESTE` define como o script roda: `True` roda como teste e `False` roda como processo real. No modo teste, o script usa o CPF (você pode utilizar um gerador de CPF), o grupo e a cota definidos no `.env` (`CPF_TESTE`, `GRUPO_TESTE` e `COTA_TESTE`), e para antes do "Concluir", então nada é enviado para análise.
+No topo do `main.py`, a variável `MODO_TESTE` define como o script roda: `True` roda como teste e `False` roda como processo real. No modo teste, o script usa o CPF (você pode utilizar um gerador de CPF), o grupo e a cota definidos no `.env` (`CPF_TESTE`, `GRUPO_TESTE` e `COTA_TESTE`), e para antes do "Concluir", então nada é enviado para análise. A pasta do processo ganha `-teste` no nome, para não se misturar com os cadastros reais, e a execução fica no histórico com o estado `teste`.
 
 O modo teste ainda preenche a solicitação no sistema real e cancela uma solicitação que esteja em andamento nessa cota. Por isso, use um grupo e uma cota que possam ser usados para teste.
 
@@ -129,7 +140,7 @@ python main.py
 
 O script pergunta de qual conta da Magalu é a cota e, fora do modo teste, o grupo e a cota.
 
-## Decisões## Decisões
+## Decisões
 
 ### Portão antes de abrir o sistema
 
@@ -146,25 +157,48 @@ A IA lê os dados, mas o formato final que o sistema exige é garantido pelo có
 - **Telefone:** o código mantém só os números, remove o DDD e confere se sobraram 8 ou 9 dígitos. Em um cadastro, a IA alterou o número e ele chegou com 7 dígitos; agora o script para e avisa antes de abrir o sistema.
 - **Número do endereço:** o código fica só com o primeiro valor antes do primeiro espaço. A IA juntava o complemento ao número, o que quebrava a busca do endereço no sistema e fazia o complemento sumir.
 - **Estado civil:** o código remove o "(a)", passa tudo para minúsculas e trata os acentos (ã, á, ú). Assim, a forma feminina e a masculina caem no mesmo código do sistema.
+- **CPF:** o código deixa só os números, que é como o sistema aceita. A IA devolve com ou sem pontos, e a busca por CPF no histórico só acha o que estiver escrito igual.
+- **Campos em branco:** o `texto_whats.txt` nasce com um rótulo para cada campo, para a IA não precisar adivinhar o que é cada valor. Um rótulo sem valor pode voltar da IA como texto vazio, e o código transforma isso em vazio de verdade, para o portão pegar. Se todos os campos do cônjuge vierem vazios, o cliente segue sem cônjuge, mas, se ele for casado ou estiver em união estável, o script para antes de abrir o sistema.
 
 ### Modo teste
 
 O sistema da Magalu não tem ambiente de teste. Por isso, o modo teste usa o CPF, o grupo e a cota definidos no `.env` e para antes do "Concluir", sem enviar nada para análise.
 
+### Histórico em SQLite
+
+Uma vez me perguntaram sobre um cadastro que tinha subido com o CEP errado. Para saber se aquele cadastro tinha sido feito pelo script ou à mão, por mim, tive que deduzir pela existência da pasta do processo. Agora cada execução fica registrada num banco SQLite, e a resposta vira uma consulta: nesse processo, o script enviou este CEP.
+
+- **O que guarda:** três tabelas. A `execucoes` tem uma linha por execução, com a conta, o grupo, a cota, se foi teste, o horário de início e de fim e o estado. A `pessoas` guarda o cliente e o cônjuge do jeito que o script digitou no sistema (a origem dos dados continua na pasta do processo), e a `chamadas_api` guarda os tokens de cada chamada à IA. As duas se ligam à execução por chave estrangeira.
+- **Quando grava:** logo antes de abrir o sistema, com o estado `iniciado`. No fim, o estado vira `em análise`, `pendência` ou `teste`. Se o script quebrar no meio, a execução fica `iniciado`, o que mostra que ela não terminou. Uso `pendência`, e não "aguardando taxa", porque o script só sabe que o processo não foi para análise, não o motivo. Os horários ficam com o ano primeiro (`2026-10-20 14:03:00`): testei com o dia primeiro, e a ordenação misturava os meses e as funções de data do SQLite não funcionavam.
+- **Custo da IA:** cada execução faz três chamadas à IA (texto do WhatsApp, CNH e comprovante), por isso os tokens ficam numa tabela própria, com uma linha por chamada. O banco guarda os tokens, e não o valor, porque o preço muda e é diferente para cada modelo. O valor é calculado com o preço de cada modelo e aparece no terminal antes de abrir o sistema.
+- **Onde fica:** as pastas dos processos ficam no Google Drive, mas o banco fica fora dele, porque a sincronização pode travar ou estragar o arquivo durante uma gravação. Também fica fora do Git, porque guarda CPF e endereço de clientes.
+- **O que ficou de fora:** uma execução que para no portão não entra no histórico, e a leitura da IA, que já foi paga, fica sem registro. Por enquanto, aceitei isso. A ideia é o script conferir o `texto_whats.txt` antes de chamar a IA, para parar antes de pagar quando faltar algum dado do cliente.
+
+Exemplo de consulta, para ver o que o script enviou num processo (o caso do CEP):
+
+```sql
+SELECT execucoes.iniciado_em, execucoes.estado, pessoas.papel, pessoas.nome, pessoas.cep
+FROM execucoes
+JOIN pessoas ON pessoas.execucao_id = execucoes.id
+WHERE execucoes.grupo = '1234' AND execucoes.cota = '567' AND execucoes.modo_teste = 0
+ORDER BY execucoes.iniciado_em;
+```
+
 ## Uso de IA
 
 ### Como parte do produto
 
-A IA lê o texto do WhatsApp colocado no `texto_whats.txt` (Haiku 4.5), extrai os dados dos documentos (Sonnet 5) e devolve tudo em JSON. Os pontos que o código reforça são o portão e o tratamento de número, telefone, estado civil, sexo e CPF. Os pontos que não são reforçados pelo código, o usuário confere no console.
+A IA lê o texto do WhatsApp colocado no `texto_whats.txt` (Haiku 4.5), extrai os dados dos documentos (Sonnet 5) e devolve tudo em JSON. Os pontos que o código reforça são o portão e o tratamento de número, telefone, estado civil, sexo, CPF e campos em branco. Os pontos que não são reforçados pelo código, o usuário confere no console.
 
 ### Como ferramenta de ajuda no desenvolvimento
 
-Explicação de conceitos novos, revisão de código e de commits, e depuração em dupla (a IA propunha hipóteses, e eu rodava os experimentos no sistema real da Magalu). Também usei a IA para debater ideias e viabilidade, ajudar nas decisões do projeto e listar prioridades para seguir com ele, mas quem batia o martelo era sempre eu. Tudo isso foi feito com o Claude, num projeto em que criei uma skill voltada para me ajudar a criar projetos com o intuito de aprender, além de documentos que guardam o contexto das tecnologias que eu sei e as ideias de projetos.
+Explicação de conceitos novos, revisão de código e depuração em dupla (a IA propunha hipóteses, e eu rodava os experimentos no sistema real da Magalu). Também usei a IA para debater ideias e viabilidade, ajudar nas decisões do projeto e listar prioridades para seguir com ele, mas quem batia o martelo era sempre eu. Tudo isso foi feito com o Claude, num projeto em que criei uma skill voltada para me ajudar a criar projetos com o intuito de aprender, além de documentos que guardam o contexto das tecnologias que eu sei e as ideias de projetos.
 
 Alguns trechos que eram apenas mecânicos, ou que não traziam ganho de aprendizado (trechos que eu saberia fazer, só levaria tempo), eu deleguei para a IA escrever no meu padrão de escrita e lógica: eu especificava e depois revisava e testava. Alguns exemplos:
 
 - Fusão de três scripts, `teste_playwright.py`, `termo.py` e `main.py` (trecho mecânico)
 - Bloco de tratamento do telefone (sem aprendizado novo): eu já sabia a lógica e a sintaxe necessárias e deleguei para a IA escrever com base nisso
+- No histórico, a gravação do cônjuge, que repete a do cliente, e o laço que soma o custo de cada execução (sem aprendizado novo)
 
 Acréscimos que fortaleceram o projeto, que eu analisei e aprovei. Exemplos:
 
@@ -172,9 +206,9 @@ Acréscimos que fortaleceram o projeto, que eu analisei e aprovei. Exemplos:
 - Varredura do histórico do Git atrás de dados sensíveis
 - O diagrama foi montado pela IA a partir da lista de passos que eu escrevi, e eu revisei
 
-### Formatação e português
+### README e commits
 
-Usei a IA para analisar, formatar e revisar este README e os commits.
+Usei a IA para analisar, formatar e revisar este README. Parte do texto, como a seção do histórico, a IA escreveu a partir das minhas decisões e do código, e eu revisei. A IA também escreve as mensagens de commit, a partir do diff; o que entra em cada commit, eu decido e confiro antes de enviar.
 
 ### Onde não entrou
 
@@ -185,5 +219,7 @@ Usei a IA para analisar, formatar e revisar este README e os commits.
 
 - Modo teste no sistema real da Magalu
 - Testes isolados no console com dados fictícios
+- Testes de propósito com dado faltando, para ver o script parar antes do sistema (como um cliente casado sem os dados do cônjuge)
+- Consultas SQL no histórico depois dos testes, para conferir o que cada execução gravou
 - Linha que a IA escreveu e eu não sei explicar volta para eu escrever
 
